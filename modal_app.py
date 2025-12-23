@@ -156,8 +156,12 @@ def fastapi_app():
             "height": height,
         }
     
-    @web_app.post("/api/generate/{image_id}")
-    async def generate_splat(image_id: str):
+    class GenerateRequest(BaseModel):
+        imageId: str
+    
+    @web_app.post("/api/generate")
+    async def generate_splat(request: GenerateRequest):
+        image_id = request.imageId
         job_id = str(uuid.uuid4())
         
         # Find uploaded image
@@ -174,6 +178,7 @@ def fastapi_app():
         
         # Run Sharp inference (synchronous for now)
         start_time = time.time()
+
         try:
             sys.path.insert(0, "/opt/ml-sharp")
             from sharp.sharp import Sharp
