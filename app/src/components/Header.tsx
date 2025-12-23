@@ -1,4 +1,4 @@
-import type { JobStatus } from '../types';
+import type { JobStatus, SplatJob } from '../types';
 import { StatusIndicator } from './StatusIndicator';
 
 interface HeaderProps {
@@ -7,9 +7,10 @@ interface HeaderProps {
     error?: string;
     backendOnline: boolean;
     onDocsClick: () => void;
+    currentJob?: SplatJob | null;
 }
 
-export function Header({ status, processingTime, error, backendOnline, onDocsClick }: HeaderProps) {
+export function Header({ status, processingTime, error, backendOnline, onDocsClick, currentJob }: HeaderProps) {
     return (
         <header className="h-14 bg-plate border-b border-metal flex items-center justify-between px-6">
             <div className="flex items-center gap-4">
@@ -37,7 +38,9 @@ export function Header({ status, processingTime, error, backendOnline, onDocsCli
                     status={status}
                     processingTime={processingTime}
                     error={error}
+                    currentJob={currentJob}
                 />
+
 
                 {/* Docs Button */}
                 <button

@@ -1,4 +1,4 @@
-export type JobStatus = 'idle' | 'uploading' | 'processing' | 'complete' | 'error';
+export type JobStatus = 'idle' | 'uploading' | 'queued' | 'processing' | 'complete' | 'error';
 
 export interface ImageUploadResponse {
     imageId: string;
@@ -11,14 +11,17 @@ export interface ImageUploadResponse {
 export interface SplatJob {
     jobId: string;
     imageId: string;
-    status: JobStatus;
+    status: 'queued' | 'processing' | 'complete' | 'error';
     progress?: number;
     splatUrl?: string;
     splatPath?: string;  // Absolute file path for mesh conversion
     videoUrl?: string;
     processingTimeMs?: number;
     error?: string;
+    queuePosition?: number;
+    estimatedWaitSeconds?: number;
 }
+
 
 export interface ViewerConfig {
     pointSize: number;

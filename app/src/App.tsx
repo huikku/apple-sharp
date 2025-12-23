@@ -64,13 +64,27 @@ function App() {
     try {
       const job = await api.generateSplat(uploadedImage.imageId);
       setCurrentJob(job);
-      logInfo('INFERENCE', `Job started: ${job.jobId}`);
+
+      // Log initial status (might be queued)
+      if (job.status === 'queued' && job.queuePosition) {
+        setStatus('queued');
+        logInfo('QUEUE', `Position #${job.queuePosition} - estimated wait: ${job.estimatedWaitSeconds || 0}s`);
+      } else {
+        logInfo('INFERENCE', `Job started: ${job.jobId}`);
+      }
 
       // Poll for completion
       const pollInterval = setInterval(async () => {
         try {
           const updatedJob = await api.getSplatStatus(job.jobId);
           setCurrentJob(updatedJob);
+
+          // Update status based on job state
+          if (updatedJob.status === 'queued') {
+            setStatus('queued');
+          } else if (updatedJob.status === 'processing') {
+            setStatus('processing');
+          }
 
           if (updatedJob.status === 'complete') {
             clearInterval(pollInterval);
@@ -89,7 +103,7 @@ function App() {
           setError(errorMsg);
           logError('CONNECTION', errorMsg);
         }
-      }, 1000);
+      }, 2000); // Poll every 2 seconds
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Generation failed';
       setError(errorMsg);
@@ -97,6 +111,7 @@ function App() {
       logError('INFERENCE', errorMsg);
     }
   }, [uploadedImage, logError, logSuccess, logInfo]);
+
 
   const handleReset = useCallback(() => {
     setStatus('idle');
@@ -114,7 +129,9 @@ function App() {
         error={error}
         backendOnline={backendOnline}
         onDocsClick={() => setIsDocsOpen(true)}
+        currentJob={currentJob}
       />
+
 
       {/* Documentation Modal */}
       <DocsModal isOpen={isDocsOpen} onClose={() => setIsDocsOpen(false)} />

@@ -104,16 +104,41 @@ def fastapi_app():
         allow_headers=["*"],
     )
     
-    # Job storage (in-memory for now)
+    # Job and queue storage (in-memory)
     jobs = {}
+    job_queue = []  # List of job IDs in order
+    active_jobs = set()  # Currently processing jobs
+    MAX_CONCURRENT = 3  # Max simultaneous processing jobs
+    AVG_PROCESSING_TIME = 45  # Average seconds per job
     
     class SplatJob(BaseModel):
         jobId: str
-        status: str
+        status: str  # 'queued', 'processing', 'complete', 'error'
         splatUrl: str | None = None
         splatPath: str | None = None
         processingTimeMs: int | None = None
         error: str | None = None
+        queuePosition: int | None = None
+        estimatedWaitSeconds: int | None = None
+    
+    class QueueStatus(BaseModel):
+        activeJobs: int
+        queueLength: int
+        maxConcurrent: int
+        yourPosition: int | None = None
+        estimatedWaitSeconds: int | None = None
+    
+    def get_queue_position(job_id: str) -> tuple[int, int]:
+        """Get queue position and estimated wait time for a job."""
+        if job_id in active_jobs:
+            return 0, 0  # Currently processing
+        try:
+            pos = job_queue.index(job_id) + 1
+            # Estimate: (position / concurrent slots) * avg time
+            wait = int((pos / MAX_CONCURRENT) * AVG_PROCESSING_TIME)
+            return pos, wait
+        except ValueError:
+            return 0, 0
     
     @web_app.get("/")
     async def root():
@@ -122,6 +147,7 @@ def fastapi_app():
             "version": "1.0.0",
             "docs": "/docs",
             "health": "/api/health",
+            "queue": "/api/queue",
         }
     
     @web_app.get("/api/health")
@@ -132,7 +158,19 @@ def fastapi_app():
             "service": "sharp-api-modal",
             "cuda_available": torch.cuda.is_available(),
             "gpu": torch.cuda.get_device_name(0) if torch.cuda.is_available() else None,
+            "activeJobs": len(active_jobs),
+            "queueLength": len(job_queue),
         }
+    
+    @web_app.get("/api/queue")
+    async def get_queue_status():
+        """Get current queue status."""
+        return QueueStatus(
+            activeJobs=len(active_jobs),
+            queueLength=len(job_queue),
+            maxConcurrent=MAX_CONCURRENT,
+        )
+
     
     @web_app.post("/api/upload")
     async def upload_image(file: UploadFile = File(...)):
@@ -171,10 +209,31 @@ def fastapi_app():
             raise HTTPException(status_code=404, detail="Image not found")
         
         image_path = str(image_files[0])
-        output_path = f"/outputs/splats/{job_id}.ply"
         
-        # Store initial job state
-        jobs[job_id] = SplatJob(jobId=job_id, status="processing")
+        # Add to queue
+        job_queue.append(job_id)
+        pos, wait = get_queue_position(job_id)
+        
+        # Store initial job state with queue info
+        jobs[job_id] = SplatJob(
+            jobId=job_id, 
+            status="queued",
+            queuePosition=pos,
+            estimatedWaitSeconds=wait,
+        )
+        
+        # Check if we can start processing
+        if len(active_jobs) >= MAX_CONCURRENT:
+            # Return queued status
+            return jobs[job_id]
+        
+        # Start processing
+        active_jobs.add(job_id)
+        if job_id in job_queue:
+            job_queue.remove(job_id)
+        jobs[job_id].status = "processing"
+        jobs[job_id].queuePosition = 0
+        jobs[job_id].estimatedWaitSeconds = 0
         
         # Run Sharp inference via CLI
         start_time = time.time()
@@ -220,13 +279,20 @@ def fastapi_app():
                 splatUrl=f"/api/download/{job_id}/{ply_file.name}",
                 splatPath=str(ply_file),
                 processingTimeMs=elapsed_ms,
+                queuePosition=0,
+                estimatedWaitSeconds=0,
             )
         except Exception as e:
             jobs[job_id] = SplatJob(
                 jobId=job_id,
                 status="error",
                 error=str(e),
+                queuePosition=0,
+                estimatedWaitSeconds=0,
             )
+        finally:
+            # Remove from active jobs
+            active_jobs.discard(job_id)
         
         return jobs[job_id]
 
@@ -235,7 +301,16 @@ def fastapi_app():
     async def get_status(job_id: str):
         if job_id not in jobs:
             raise HTTPException(status_code=404, detail="Job not found")
-        return jobs[job_id]
+        
+        # Update queue position if still queued
+        job = jobs[job_id]
+        if job.status == "queued":
+            pos, wait = get_queue_position(job_id)
+            job.queuePosition = pos
+            job.estimatedWaitSeconds = wait
+        
+        return job
+
     
     @web_app.get("/api/download/{job_id}/{filename}")
     async def download_file(job_id: str, filename: str):
