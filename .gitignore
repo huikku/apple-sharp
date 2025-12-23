@@ -1,0 +1,25 @@
+# ML model repo (cloned separately)
+ml-sharp/
+
+# Generated outputs
+outputs/
+
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+*.egg-info/
+
+# Node
+node_modules/
+dist/
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store

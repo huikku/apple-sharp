@@ -1,0 +1,126 @@
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@import "tailwindcss";
+
+@theme {
+  /* === FinalPoint Base Palette === */
+  --color-void: #0A0C0E;
+  --color-plate: #14171C;
+  --color-frame: #1E2328;
+  --color-fp-text: #C1C5C8;
+  --color-fp-text-muted: #6F7477;
+  --color-metal-base: #6F7477;
+  --color-metal-trim: #464B4E;
+  --color-metal-highlight: #C1C5C8;
+
+  /* === Accent Colors === */
+  --color-success: #3FFF59;
+  --color-success-idle: #1C8E32;
+  --color-warning: #E79C35;
+  --color-warning-idle: #A06715;
+  --color-critical: #C32D2D;
+  --color-critical-idle: #6C1B1B;
+  --color-info: #68A9EC;
+  --color-info-idle: #305575;
+
+  /* === Fonts === */
+  --font-display: "Barlow Condensed", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Barlow", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+body {
+  font-family: var(--font-sans);
+  color: var(--color-fp-text);
+  background-color: var(--color-void);
+  font-feature-settings: "rlig" 1, "calt" 1;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-display);
+  letter-spacing: -0.025em;
+}
+
+code,
+pre,
+kbd {
+  font-family: var(--font-mono);
+}
+
+/* Utility classes */
+.bg-card {
+  background-color: var(--color-frame);
+}
+
+.bg-plate {
+  background-color: var(--color-plate);
+}
+
+.bg-void {
+  background-color: var(--color-void);
+}
+
+.bg-success {
+  background-color: var(--color-success);
+}
+
+.bg-warning {
+  background-color: var(--color-warning);
+}
+
+.bg-critical {
+  background-color: var(--color-critical);
+}
+
+.bg-info {
+  background-color: var(--color-info);
+}
+
+.text-muted {
+  color: var(--color-fp-text-muted);
+}
+
+.text-success {
+  color: var(--color-success);
+}
+
+.text-success-idle {
+  color: var(--color-success-idle);
+}
+
+.text-warning {
+  color: var(--color-warning);
+}
+
+.text-warning-idle {
+  color: var(--color-warning-idle);
+}
+
+.text-critical {
+  color: var(--color-critical);
+}
+
+.text-critical-idle {
+  color: var(--color-critical-idle);
+}
+
+.text-info {
+  color: var(--color-info);
+}
+
+.text-info-idle {
+  color: var(--color-info-idle);
+}
+
+.border-metal {
+  border-color: var(--color-metal-trim);
+}
+
+.font-display {
+  font-family: var(--font-display);
+}

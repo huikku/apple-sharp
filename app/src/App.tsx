@@ -1,0 +1,170 @@
+import { useState, useCallback, useEffect } from 'react';
+import { Header } from './components/Header';
+import { ImageUpload } from './components/ImageUpload';
+import { ControlPanel } from './components/ControlPanel';
+import { OutputsPanel } from './components/OutputsPanel';
+import { SplatViewer } from './components/SplatViewer';
+import { LogPanel, useLogs } from './components/LogPanel';
+import * as api from './services/api';
+import type { JobStatus, ImageUploadResponse, SplatJob } from './types';
+
+function App() {
+  const [status, setStatus] = useState<JobStatus>('idle');
+  const [uploadedImage, setUploadedImage] = useState<ImageUploadResponse | null>(null);
+  const [currentJob, setCurrentJob] = useState<SplatJob | null>(null);
+  const [error, setError] = useState<string | undefined>();
+  const [backendOnline, setBackendOnline] = useState(false);
+  const { logs, clearLogs, logError, logSuccess, logInfo } = useLogs();
+
+  // View settings state
+  const [pointSize, setPointSize] = useState(0.005);
+  const [showColors, setShowColors] = useState(true);
+  const [pointShape, setPointShape] = useState<'square' | 'circle'>('circle');
+
+  // Check backend health on mount
+  useEffect(() => {
+    const checkHealth = async () => {
+      const online = await api.healthCheck();
+      setBackendOnline(online);
+    };
+    checkHealth();
+    const interval = setInterval(checkHealth, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleUpload = useCallback(async (file: File) => {
+    setStatus('uploading');
+    setError(undefined);
+    logInfo('UPLOAD', `Uploading ${file.name}...`);
+
+    try {
+      const response = await api.uploadImage(file);
+      setUploadedImage(response);
+      setStatus('idle');
+      logSuccess('UPLOAD', `Image uploaded: ${response.filename} (${response.width}×${response.height})`);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Upload failed';
+      setError(errorMsg);
+      setStatus('error');
+      logError('UPLOAD ERROR', errorMsg);
+    }
+  }, [logError, logSuccess, logInfo]);
+
+  const handleGenerate = useCallback(async () => {
+    if (!uploadedImage) return;
+
+    setStatus('processing');
+    setError(undefined);
+    logInfo('INFERENCE', 'Starting 3D Gaussian splat generation...');
+
+    try {
+      const job = await api.generateSplat(uploadedImage.imageId);
+      setCurrentJob(job);
+      logInfo('INFERENCE', `Job started: ${job.jobId}`);
+
+      // Poll for completion
+      const pollInterval = setInterval(async () => {
+        try {
+          const updatedJob = await api.getSplatStatus(job.jobId);
+          setCurrentJob(updatedJob);
+
+          if (updatedJob.status === 'complete') {
+            clearInterval(pollInterval);
+            setStatus('complete');
+            logSuccess('INFERENCE', `Complete in ${(updatedJob.processingTimeMs || 0) / 1000}s`);
+          } else if (updatedJob.status === 'error') {
+            clearInterval(pollInterval);
+            setStatus('error');
+            setError(updatedJob.error);
+            logError('INFERENCE', updatedJob.error || 'Generation failed');
+          }
+        } catch (pollErr) {
+          clearInterval(pollInterval);
+          setStatus('error');
+          const errorMsg = pollErr instanceof Error ? pollErr.message : 'Failed to check job status';
+          setError(errorMsg);
+          logError('CONNECTION', errorMsg);
+        }
+      }, 1000);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Generation failed';
+      setError(errorMsg);
+      setStatus('error');
+      logError('INFERENCE', errorMsg);
+    }
+  }, [uploadedImage, logError, logSuccess, logInfo]);
+
+  const handleReset = useCallback(() => {
+    setStatus('idle');
+    setUploadedImage(null);
+    setCurrentJob(null);
+    setError(undefined);
+    logInfo('RESET', 'Workspace cleared');
+  }, [logInfo]);
+
+  return (
+    <div className="h-screen bg-void flex flex-col overflow-hidden">
+      <Header
+        status={status}
+        processingTime={currentJob?.processingTimeMs}
+        error={error}
+        backendOnline={backendOnline}
+      />
+
+      <main className="flex-1 flex overflow-hidden">
+        {/* Left sidebar - Upload, Controls & Outputs */}
+        <div className="w-64 shrink-0 p-4 space-y-4 overflow-y-auto border-r border-metal">
+          <ImageUpload
+            onUpload={handleUpload}
+            uploadedImage={uploadedImage}
+            isUploading={status === 'uploading'}
+            disabled={status === 'processing'}
+          />
+          <ControlPanel
+            uploadedImage={uploadedImage}
+            status={status}
+            onGenerate={handleGenerate}
+            onReset={handleReset}
+            pointSize={pointSize}
+            onPointSizeChange={setPointSize}
+            showColors={showColors}
+            onShowColorsChange={setShowColors}
+            pointShape={pointShape}
+            onPointShapeChange={setPointShape}
+            hasSplat={status === 'complete' && !!currentJob?.splatUrl}
+          />
+          <OutputsPanel
+            splatPath={currentJob?.splatPath || null}
+            splatUrl={currentJob?.splatUrl || null}
+            jobId={currentJob?.jobId || null}
+            isComplete={status === 'complete'}
+            onLog={(message, type) => {
+              if (type === 'error') logError('OUTPUT', message);
+              else if (type === 'success') logSuccess('OUTPUT', message);
+              else logInfo('OUTPUT', message);
+            }}
+          />
+        </div>
+
+        {/* Center content - 3D Viewer (fills remaining space) */}
+        <div className="flex-1 p-4 min-w-0">
+          <SplatViewer
+            splatUrl={currentJob?.splatUrl}
+            showAxes={true}
+            autoRotate={false}
+            pointSize={pointSize}
+            showColors={showColors}
+            pointShape={pointShape}
+          />
+        </div>
+
+        {/* Right sidebar - Logs */}
+        <div className="w-72 shrink-0 p-4 overflow-y-auto border-l border-metal">
+          <LogPanel logs={logs} onClear={clearLogs} />
+        </div>
+      </main>
+    </div>
+  );
+}
+
+export default App;
