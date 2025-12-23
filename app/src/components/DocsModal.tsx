@@ -285,13 +285,18 @@ function UsageTab() {
                 <h4 className="font-medium mb-2">🔗 Resources</h4>
                 <ul className="text-xs space-y-2">
                     <li>
-                        <a href="https://machinelearning.apple.com/research/sharp" target="_blank" rel="noopener" className="text-info hover:underline">
-                            Apple Research - Sharp Paper →
+                        <a href="https://github.com/apple/ml-sharp" target="_blank" rel="noopener" className="text-info hover:underline">
+                            GitHub - apple/ml-sharp →
                         </a>
                     </li>
                     <li>
-                        <a href="https://github.com/apple/ml-sharp" target="_blank" rel="noopener" className="text-info hover:underline">
-                            GitHub - apple/ml-sharp →
+                        <a href="https://huggingface.co/apple/Sharp" target="_blank" rel="noopener" className="text-info hover:underline">
+                            HuggingFace - apple/Sharp →
+                        </a>
+                    </li>
+                    <li>
+                        <a href="https://arxiv.org/abs/2512.10685" target="_blank" rel="noopener" className="text-info hover:underline">
+                            arXiv Paper →
                         </a>
                     </li>
                     <li>

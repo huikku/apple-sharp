@@ -177,9 +177,11 @@ apple-sharp/
 
 ## Resources
 
-- [Apple Research - Sharp Paper](https://machinelearning.apple.com/research/sharp)
 - [GitHub - apple/ml-sharp](https://github.com/apple/ml-sharp)
+- [HuggingFace - apple/Sharp](https://huggingface.co/apple/Sharp)
+- [arXiv Paper](https://arxiv.org/abs/2512.10685)
 - [3D Gaussian Splatting Paper](https://repo-sam.inria.fr/fungraph/3d-gaussian-splatting/)
+
 
 ## Credits
 
