@@ -78,43 +78,77 @@ function getRetryAfter(error: AxiosError): number | undefined {
     return undefined;
 }
 
-// Wrap API calls with better error handling
-async function handleApiError<T>(promise: Promise<T>, context: string = ''): Promise<T> {
-    try {
-        return await promise;
-    } catch (error) {
-        if (axios.isAxiosError(error)) {
-            throw new ApiError(error, context);
+// Sleep helper for retry delays
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Retry with exponential backoff for retryable errors
+async function withRetry<T>(
+    fn: () => Promise<T>,
+    context: string = '',
+    maxRetries: number = 3,
+    baseDelayMs: number = 5000
+): Promise<T> {
+    let lastError: Error | undefined;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+            return await fn();
+        } catch (error) {
+            if (axios.isAxiosError(error)) {
+                const status = error.response?.status || 0;
+                const isRetryable = [429, 503, 504].includes(status);
+
+                if (isRetryable && attempt < maxRetries) {
+                    // Exponential backoff: 5s, 10s, 20s
+                    const delay = baseDelayMs * Math.pow(2, attempt);
+                    console.log(`[API] ${context}: Got ${status}, retrying in ${delay / 1000}s (attempt ${attempt + 1}/${maxRetries})`);
+                    await sleep(delay);
+                    continue;
+                }
+
+                lastError = new ApiError(error, context);
+            } else {
+                lastError = error instanceof Error ? error : new Error(String(error));
+            }
+            break;
         }
-        throw error;
     }
+
+    throw lastError;
 }
 
 export async function uploadImage(file: File): Promise<ImageUploadResponse> {
     const formData = new FormData();
     formData.append('file', file);
 
-    return handleApiError(
-        api.post<ImageUploadResponse>('/api/upload', formData, {
+    return withRetry(
+        () => api.post<ImageUploadResponse>('/api/upload', formData, {
             headers: { 'Content-Type': 'multipart/form-data' },
         }).then(r => r.data),
-        'upload'
+        'upload',
+        3,  // 3 retries
+        5000 // Start with 5 second delay
     );
 }
 
 export async function generateSplat(imageId: string): Promise<SplatJob> {
-    return handleApiError(
-        api.post<SplatJob>('/api/generate', { imageId }).then(r => r.data),
-        'generate'
+    return withRetry(
+        () => api.post<SplatJob>('/api/generate', { imageId }).then(r => r.data),
+        'generate',
+        3,
+        5000
     );
 }
 
 export async function getSplatStatus(jobId: string): Promise<SplatJob> {
-    return handleApiError(
-        api.get<SplatJob>(`/api/status/${jobId}`).then(r => r.data),
-        'status'
+    return withRetry(
+        () => api.get<SplatJob>(`/api/status/${jobId}`).then(r => r.data),
+        'status',
+        2,
+        3000
     );
 }
+
 
 export function getSplatDownloadUrl(jobId: string): string {
     return `/api/download/${jobId}`;
@@ -166,11 +200,13 @@ export interface MeshMethodsResponse {
 }
 
 export async function convertToMesh(request: MeshConvertRequest): Promise<MeshConvertResponse> {
-    return handleApiError(
-        api.post<MeshConvertResponse>('/api/mesh/convert', request, {
+    return withRetry(
+        () => api.post<MeshConvertResponse>('/api/mesh/convert', request, {
             timeout: 300000, // 5 minute timeout for mesh conversion
         }).then(r => r.data),
-        'mesh'
+        'mesh',
+        2,
+        10000
     );
 }
 
@@ -179,8 +215,11 @@ export function getMeshDownloadUrl(filename: string): string {
 }
 
 export async function getMeshMethods(): Promise<MeshMethodsResponse> {
-    return handleApiError(
-        api.get<MeshMethodsResponse>('/api/mesh/methods').then(r => r.data),
-        'mesh'
+    return withRetry(
+        () => api.get<MeshMethodsResponse>('/api/mesh/methods').then(r => r.data),
+        'mesh',
+        2,
+        3000
     );
 }
+
