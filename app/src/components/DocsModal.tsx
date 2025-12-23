@@ -46,8 +46,8 @@ export function DocsModal({ isOpen, onClose }: DocsModalProps) {
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id as typeof activeTab)}
                             className={`px-6 py-3 text-sm font-medium transition-colors ${activeTab === tab.id
-                                    ? 'text-[var(--color-fp-text)] border-b-2 border-success'
-                                    : 'text-muted hover:text-[var(--color-fp-text)]'
+                                ? 'text-[var(--color-fp-text)] border-b-2 border-success'
+                                : 'text-muted hover:text-[var(--color-fp-text)]'
                                 }`}
                         >
                             {tab.label}
@@ -70,15 +70,21 @@ function AboutTab() {
     return (
         <div className="space-y-6 text-sm text-[var(--color-fp-text)]">
             <section>
-                <h3 className="font-display text-lg mb-3 text-success">What is Sharp?</h3>
+                <h3 className="font-display text-lg mb-3 text-success">What is SHARP?</h3>
                 <p className="leading-relaxed mb-4">
-                    <strong>Sharp</strong> (Single-image 3D Human and Animal Reconstruction from Photos) is an AI model
-                    developed by <a href="https://machinelearning.apple.com/research/sharp" target="_blank" rel="noopener" className="text-info hover:underline">Apple Research</a> that
-                    generates 3D Gaussian splats from a single photograph.
+                    <strong>SHARP</strong> (Sharp Monocular View Synthesis in Less Than a Second) is an approach to
+                    <strong> photorealistic view synthesis</strong> from a single image, developed by {' '}
+                    <a href="https://arxiv.org/abs/2512.10685" target="_blank" rel="noopener" className="text-info hover:underline">Apple Research</a>.
+                </p>
+                <p className="leading-relaxed mb-4">
+                    Given a single photograph, SHARP regresses the parameters of a 3D Gaussian representation
+                    of the depicted scene in <strong>less than a second</strong> via a single
+                    feedforward pass through a neural network.
                 </p>
                 <p className="leading-relaxed">
-                    Unlike traditional 3D reconstruction methods that require multiple images or depth sensors,
-                    Sharp uses a foundation model trained on diverse datasets to infer 3D structure from monocular input.
+                    The 3D Gaussian representation can then be rendered in real time, yielding high-resolution
+                    photorealistic images for nearby views. The representation is <strong>metric</strong>,
+                    supporting absolute scale camera movements.
                 </p>
             </section>
 
@@ -99,20 +105,21 @@ function AboutTab() {
             <section>
                 <h3 className="font-display text-lg mb-3 text-success">Key Features</h3>
                 <ul className="list-disc list-inside space-y-2 ml-2">
-                    <li>Single image input - no multi-view capture required</li>
-                    <li>Real-time rendering with 3DGS</li>
-                    <li>High-quality novel view synthesis</li>
-                    <li>Export to standard 3D formats (OBJ, GLB, PLY)</li>
+                    <li><strong>State of the art</strong> - 25–34% LPIPS improvement, 21–43% DISTS improvement</li>
+                    <li><strong>Ultra fast</strong> - Less than a second per image (3 orders of magnitude faster)</li>
+                    <li><strong>Zero-shot generalization</strong> - Works across diverse datasets</li>
+                    <li><strong>Metric scale</strong> - Absolute scale, supports metric camera movements</li>
+                    <li><strong>Real-time rendering</strong> - View results instantly</li>
                 </ul>
             </section>
 
             <section className="bg-plate rounded-md p-4">
-                <h4 className="font-medium mb-2 text-warning">⚠️ Model Limitations</h4>
+                <h4 className="font-medium mb-2 text-warning">⚠️ Notes</h4>
                 <ul className="list-disc list-inside space-y-1 text-muted text-xs">
-                    <li>Best results with humans and animals</li>
-                    <li>Subject should be clearly visible and centered</li>
-                    <li>Complex backgrounds may affect quality</li>
-                    <li>First inference takes ~60-120s (model download)</li>
+                    <li>Uses OpenCV coordinate convention (x right, y down, z forward)</li>
+                    <li>Scene center is roughly at (0, 0, +z)</li>
+                    <li>First inference downloads 2.8GB model checkpoint</li>
+                    <li>Output PLY files compatible with standard 3DGS renderers</li>
                 </ul>
             </section>
         </div>

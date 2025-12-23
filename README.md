@@ -1,12 +1,19 @@
-# Sharp - Monocular View Synthesis
+# SHARP - Monocular View Synthesis
 
-A web interface for Apple's **Sharp** model, which generates 3D Gaussian splats from single images.
+A web interface for Apple's **SHARP** model, which generates 3D Gaussian splats from single images in less than a second.
 
-## About Sharp
+## About SHARP
 
-**Sharp** (Single-image 3D Human and Animal Reconstruction from Photos) is an AI model developed by [Apple Research](https://machinelearning.apple.com/research/sharp) that generates 3D Gaussian splats from a single photograph.
+**SHARP** (Sharp Monocular View Synthesis in Less Than a Second) is an approach to **photorealistic view synthesis** from a single image, developed by [Apple Research](https://arxiv.org/abs/2512.10685).
 
-Unlike traditional 3D reconstruction methods that require multiple images or depth sensors, Sharp uses a foundation model trained on diverse datasets to infer 3D structure from monocular input.
+Given a single photograph, SHARP regresses the parameters of a 3D Gaussian representation of the depicted scene in **less than a second** via a single feedforward pass through a neural network. The 3D Gaussian representation can then be rendered in real time, yielding high-resolution photorealistic images for nearby views.
+
+### Key Results
+
+- **25–34% LPIPS improvement** and **21–43% DISTS improvement** versus prior models
+- **3 orders of magnitude faster** than previous methods
+- **Zero-shot generalization** across diverse datasets
+- **Metric scale** representation with absolute scale
 
 ### What are Gaussian Splats?
 
@@ -16,6 +23,7 @@ Gaussian splats are a novel 3D representation that models scenes as collections 
 - **Covariance** - Shape/orientation as a 3D ellipsoid
 - **Opacity** - Transparency value
 - **Color** - Spherical harmonics for view-dependent appearance
+
 
 ## Features
 
