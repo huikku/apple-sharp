@@ -5,6 +5,7 @@ import { ControlPanel } from './components/ControlPanel';
 import { OutputsPanel } from './components/OutputsPanel';
 import { SplatViewer } from './components/SplatViewer';
 import { LogPanel, useLogs } from './components/LogPanel';
+import { DocsModal } from './components/DocsModal';
 import * as api from './services/api';
 import type { JobStatus, ImageUploadResponse, SplatJob } from './types';
 
@@ -20,6 +21,9 @@ function App() {
   const [pointSize, setPointSize] = useState(0.005);
   const [showColors, setShowColors] = useState(true);
   const [pointShape, setPointShape] = useState<'square' | 'circle'>('circle');
+
+  // Docs modal state
+  const [isDocsOpen, setIsDocsOpen] = useState(false);
 
   // Check backend health on mount
   useEffect(() => {
@@ -109,7 +113,11 @@ function App() {
         processingTime={currentJob?.processingTimeMs}
         error={error}
         backendOnline={backendOnline}
+        onDocsClick={() => setIsDocsOpen(true)}
       />
+
+      {/* Documentation Modal */}
+      <DocsModal isOpen={isDocsOpen} onClose={() => setIsDocsOpen(false)} />
 
       <main className="flex-1 flex overflow-hidden">
         {/* Left sidebar - Upload, Controls & Outputs */}

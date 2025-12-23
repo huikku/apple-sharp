@@ -1,15 +1,61 @@
 # Sharp - Monocular View Synthesis
 
-A web interface for Apple's Sharp model, which generates 3D Gaussian splats from single images.
+A web interface for Apple's **Sharp** model, which generates 3D Gaussian splats from single images.
 
-![Sharp Demo](docs/demo.png)
+## About Sharp
+
+**Sharp** (Single-image 3D Human and Animal Reconstruction from Photos) is an AI model developed by [Apple Research](https://machinelearning.apple.com/research/sharp) that generates 3D Gaussian splats from a single photograph.
+
+Unlike traditional 3D reconstruction methods that require multiple images or depth sensors, Sharp uses a foundation model trained on diverse datasets to infer 3D structure from monocular input.
+
+### What are Gaussian Splats?
+
+Gaussian splats are a novel 3D representation that models scenes as collections of 3D Gaussian primitives. Each splat has:
+
+- **Position** - 3D coordinates (x, y, z)
+- **Covariance** - Shape/orientation as a 3D ellipsoid
+- **Opacity** - Transparency value
+- **Color** - Spherical harmonics for view-dependent appearance
 
 ## Features
 
 - **Single Image → 3D**: Upload any image and generate a 3D Gaussian splat
 - **Interactive Viewer**: Orbit, zoom, and explore the 3D scene
-- **Mesh Export**: Convert splats to OBJ/GLB/PLY meshes using Poisson, Ball Pivoting, or Alpha Shapes
+- **Mesh Export**: Convert splats to OBJ/GLB/PLY meshes
 - **View Controls**: Adjust point size, colors, and shape
+- **In-app Documentation**: Click "Docs" button for full usage guide
+
+## Mesh Conversion Methods
+
+After generating a splat, you can convert it to a polygon mesh for use in traditional 3D software.
+
+### Poisson Surface Reconstruction
+
+Creates smooth, watertight surfaces by solving a Poisson equation. Best for 3D printing and clean meshes.
+
+- **Depth parameter**: Controls octree depth (6-12). Higher = more detail but slower.
+
+### Ball Pivoting Algorithm
+
+Rolls a virtual ball over points, creating triangles where it touches. Preserves original point positions exactly.
+
+- **Radius parameter**: Ball radius. Use 0 for auto-detection.
+
+### Alpha Shapes
+
+Generalizes convex hulls to follow concave regions. Fast but may have holes in sparse areas.
+
+- **Alpha parameter**: Surface tightness. Smaller = tighter fit.
+
+### Export Formats
+
+| Format | Best For |
+|--------|----------|
+| `.OBJ` | Universal compatibility, Blender, Maya |
+| `.GLB` | Web/mobile, includes materials |
+| `.PLY` | Point clouds, preserves vertex colors |
+
+---
 
 ## Quick Start (Local Development)
 
@@ -86,6 +132,23 @@ Your app will be live at: `https://your-username.github.io/apple-sharp/`
 
 ---
 
+## Usage Tips
+
+### Best Practices for Input Images
+
+✓ **Clear subject** - Center your subject with good lighting  
+✓ **Simple background** - Plain backgrounds improve reconstruction  
+✓ **Full body visible** - Include the complete subject in frame  
+✗ **Avoid** - Blurry images, extreme poses, heavy occlusion
+
+### Performance Notes
+
+- First inference downloads the 2.8GB model checkpoint (~60-120s)
+- Subsequent inferences are much faster (~10-30s)
+- Best results with humans and animals
+
+---
+
 ## Project Structure
 
 ```
@@ -103,6 +166,12 @@ apple-sharp/
 ├── modal_app.py            # Modal deployment config
 └── .github/workflows/      # GitHub Actions CI/CD
 ```
+
+## Resources
+
+- [Apple Research - Sharp Paper](https://machinelearning.apple.com/research/sharp)
+- [GitHub - apple/ml-sharp](https://github.com/apple/ml-sharp)
+- [3D Gaussian Splatting Paper](https://repo-sam.inria.fr/fungraph/3d-gaussian-splatting/)
 
 ## Credits
 
