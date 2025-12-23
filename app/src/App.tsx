@@ -25,16 +25,24 @@ function App() {
   // Docs modal state
   const [isDocsOpen, setIsDocsOpen] = useState(false);
 
-  // Check backend health on mount
+  // Check backend health on mount (reduced frequency to avoid rate limits)
   useEffect(() => {
     const checkHealth = async () => {
-      const online = await api.healthCheck();
-      setBackendOnline(online);
+      try {
+        const online = await api.healthCheck();
+        setBackendOnline(online);
+      } catch {
+        // 429 = rate limited but server is responding, so still "online"
+        // Only mark offline if completely unreachable
+        setBackendOnline(false);
+      }
     };
     checkHealth();
-    const interval = setInterval(checkHealth, 10000);
+    // Check every 30 seconds to avoid rate limiting
+    const interval = setInterval(checkHealth, 30000);
     return () => clearInterval(interval);
   }, []);
+
 
   const handleUpload = useCallback(async (file: File) => {
     setStatus('uploading');

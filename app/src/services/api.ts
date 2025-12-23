@@ -124,7 +124,11 @@ export async function healthCheck(): Promise<boolean> {
     try {
         await api.get('/api/health');
         return true;
-    } catch {
+    } catch (error) {
+        // 429 means server is responding but rate limited - still "online"
+        if (axios.isAxiosError(error) && error.response?.status === 429) {
+            return true;
+        }
         return false;
     }
 }
