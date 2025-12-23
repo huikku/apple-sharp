@@ -45,44 +45,50 @@ image = (
         "git clone https://github.com/apple/ml-sharp.git /opt/ml-sharp",
         "cd /opt/ml-sharp && pip install -e .",
     )
+    .env({
+        "HF_HOME": "/model-cache",
+        "TRANSFORMERS_CACHE": "/model-cache",
+    })
 )
 
 # Create the Modal app
 app = modal.App("sharp-api", image=image)
 
 # Persistent volume for model cache (avoids re-downloading 2.8GB model)
-volume = modal.Volume.from_name("sharp-model-cache", create_if_missing=True)
+model_cache = modal.Volume.from_name("sharp-model-cache", create_if_missing=True)
+outputs_volume = modal.Volume.from_name("sharp-outputs", create_if_missing=True)
 
 
 @app.function(
     gpu="T4",  # T4 is cheapest, use "A10G" for faster inference
     volumes={
-        "/root/.cache": volume,  # HuggingFace cache
-        "/outputs": modal.Volume.from_name("sharp-outputs", create_if_missing=True),
+        "/model-cache": model_cache,
+        "/outputs": outputs_volume,
     },
     timeout=600,  # 10 minute timeout for long operations
-    allow_concurrent_inputs=5,
     memory=8192,  # 8GB RAM
 )
+@modal.concurrent(max_inputs=5)
 @modal.asgi_app()
 def fastapi_app():
     """Serve the Sharp FastAPI application."""
     import sys
     import os
-    
-    # Add server module to path
-    sys.path.insert(0, "/opt/ml-sharp")
-    
-    # Set working directory for outputs
-    os.chdir("/outputs")
-    
-    # Import the FastAPI app from our server
-    from fastapi import FastAPI
-    from fastapi.middleware.cors import CORSMiddleware
-    from fastapi.staticfiles import StaticFiles
+    import uuid
+    import time
     from pathlib import Path
     
-    # Create a new FastAPI app for Modal
+    from fastapi import FastAPI, UploadFile, File, HTTPException
+    from fastapi.middleware.cors import CORSMiddleware
+    from fastapi.responses import FileResponse
+    from pydantic import BaseModel
+    
+    # Ensure directories exist
+    Path("/outputs/uploads").mkdir(parents=True, exist_ok=True)
+    Path("/outputs/splats").mkdir(parents=True, exist_ok=True)
+    Path("/outputs/meshes").mkdir(parents=True, exist_ok=True)
+    
+    # Create FastAPI app
     web_app = FastAPI(
         title="Sharp API",
         description="Apple Sharp monocular view synthesis - deployed on Modal",
@@ -92,52 +98,121 @@ def fastapi_app():
     # CORS for GitHub Pages and local development
     web_app.add_middleware(
         CORSMiddleware,
-        allow_origins=[
-            "https://alienrobot.github.io",  # GitHub Pages
-            "https://*.github.io",
-            "http://localhost:5173",  # Vite dev
-            "http://localhost:3000",
-        ],
+        allow_origins=["*"],  # Allow all origins for now
         allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
     )
     
-    # Ensure output directories exist
-    Path("/outputs/uploads").mkdir(parents=True, exist_ok=True)
-    Path("/outputs/splats").mkdir(parents=True, exist_ok=True)
-    Path("/outputs/meshes").mkdir(parents=True, exist_ok=True)
+    # Job storage (in-memory for now)
+    jobs = {}
     
-    # Import and include existing routers
-    from server.routes import inference
-    from server.routes import mesh
-    
-    web_app.include_router(inference.router)
-    web_app.include_router(mesh.router)
-    
-    # Mount static files for serving outputs
-    web_app.mount("/outputs", StaticFiles(directory="/outputs"), name="outputs")
-    
-    @web_app.get("/api/health")
-    async def health_check():
-        """Health check endpoint."""
-        import torch
-        return {
-            "status": "ok", 
-            "service": "sharp-api-modal",
-            "cuda_available": torch.cuda.is_available(),
-            "gpu": torch.cuda.get_device_name(0) if torch.cuda.is_available() else None,
-        }
+    class SplatJob(BaseModel):
+        jobId: str
+        status: str
+        splatUrl: str | None = None
+        splatPath: str | None = None
+        processingTimeMs: int | None = None
+        error: str | None = None
     
     @web_app.get("/")
     async def root():
-        """Root endpoint with API info."""
         return {
             "name": "Sharp API (Modal)",
             "version": "1.0.0",
             "docs": "/docs",
             "health": "/api/health",
         }
+    
+    @web_app.get("/api/health")
+    async def health_check():
+        import torch
+        return {
+            "status": "ok",
+            "service": "sharp-api-modal",
+            "cuda_available": torch.cuda.is_available(),
+            "gpu": torch.cuda.get_device_name(0) if torch.cuda.is_available() else None,
+        }
+    
+    @web_app.post("/api/upload")
+    async def upload_image(file: UploadFile = File(...)):
+        image_id = str(uuid.uuid4())
+        ext = Path(file.filename or "image.png").suffix or ".png"
+        save_path = f"/outputs/uploads/{image_id}{ext}"
+        
+        content = await file.read()
+        with open(save_path, "wb") as f:
+            f.write(content)
+        
+        # Get image dimensions
+        from PIL import Image
+        img = Image.open(save_path)
+        width, height = img.size
+        
+        return {
+            "imageId": image_id,
+            "filename": file.filename,
+            "width": width,
+            "height": height,
+        }
+    
+    @web_app.post("/api/generate/{image_id}")
+    async def generate_splat(image_id: str):
+        job_id = str(uuid.uuid4())
+        
+        # Find uploaded image
+        upload_dir = Path("/outputs/uploads")
+        image_files = list(upload_dir.glob(f"{image_id}.*"))
+        if not image_files:
+            raise HTTPException(status_code=404, detail="Image not found")
+        
+        image_path = str(image_files[0])
+        output_path = f"/outputs/splats/{job_id}.ply"
+        
+        # Store initial job state
+        jobs[job_id] = SplatJob(jobId=job_id, status="processing")
+        
+        # Run Sharp inference (synchronous for now)
+        start_time = time.time()
+        try:
+            sys.path.insert(0, "/opt/ml-sharp")
+            from sharp.sharp import Sharp
+            
+            model = Sharp()
+            model.predict(image_path, output_path)
+            
+            elapsed_ms = int((time.time() - start_time) * 1000)
+            
+            jobs[job_id] = SplatJob(
+                jobId=job_id,
+                status="complete",
+                splatUrl=f"/api/download/{job_id}.ply",
+                splatPath=output_path,
+                processingTimeMs=elapsed_ms,
+            )
+        except Exception as e:
+            jobs[job_id] = SplatJob(
+                jobId=job_id,
+                status="error",
+                error=str(e),
+            )
+        
+        return jobs[job_id]
+    
+    @web_app.get("/api/status/{job_id}")
+    async def get_status(job_id: str):
+        if job_id not in jobs:
+            raise HTTPException(status_code=404, detail="Job not found")
+        return jobs[job_id]
+    
+    @web_app.get("/api/download/{filename}")
+    async def download_file(filename: str):
+        file_path = Path("/outputs/splats") / filename
+        if not file_path.exists():
+            file_path = Path("/outputs/meshes") / filename
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail="File not found")
+        return FileResponse(str(file_path), filename=filename)
     
     return web_app
 
