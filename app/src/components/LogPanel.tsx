@@ -92,9 +92,9 @@ export function LogPanel({ logs, onClear }: LogPanelProps) {
 
             <div
                 ref={scrollRef}
-                className="flex-1 overflow-y-auto p-2 space-y-2 min-h-0"
-                style={{ maxHeight: '300px' }}
+                className="flex-1 overflow-y-auto p-2 space-y-2 min-h-0 scrollbar-dark"
             >
+
                 {logs.length === 0 ? (
                     <p className="text-xs text-muted text-center py-4">No logs yet</p>
                 ) : (

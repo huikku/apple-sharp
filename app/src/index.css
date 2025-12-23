@@ -124,3 +124,27 @@ kbd {
 .font-display {
   font-family: var(--font-display);
 }
+
+/* Dark scrollbar for log panel */
+.scrollbar-dark {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-metal-trim) var(--color-plate);
+}
+
+.scrollbar-dark::-webkit-scrollbar {
+  width: 8px;
+}
+
+.scrollbar-dark::-webkit-scrollbar-track {
+  background: var(--color-plate);
+  border-radius: 4px;
+}
+
+.scrollbar-dark::-webkit-scrollbar-thumb {
+  background: var(--color-metal-trim);
+  border-radius: 4px;
+}
+
+.scrollbar-dark::-webkit-scrollbar-thumb:hover {
+  background: var(--color-metal-base);
+}

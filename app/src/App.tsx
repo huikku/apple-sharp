@@ -149,7 +149,7 @@ function App() {
         {/* Center content - 3D Viewer (fills remaining space) */}
         <div className="flex-1 p-4 min-w-0">
           <SplatViewer
-            splatUrl={currentJob?.splatUrl}
+            splatUrl={currentJob?.splatUrl ? api.getFullApiUrl(currentJob.splatUrl) : undefined}
             showAxes={true}
             autoRotate={false}
             pointSize={pointSize}
@@ -158,11 +158,12 @@ function App() {
           />
         </div>
 
-        {/* Right sidebar - Logs */}
-        <div className="w-72 shrink-0 p-4 overflow-y-auto border-l border-metal">
+        {/* Right sidebar - Logs (full height) */}
+        <div className="w-72 shrink-0 p-4 border-l border-metal flex flex-col h-full">
           <LogPanel logs={logs} onClear={clearLogs} />
         </div>
       </main>
+
     </div>
   );
 }

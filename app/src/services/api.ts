@@ -3,12 +3,22 @@ import type { ImageUploadResponse, SplatJob } from '../types';
 
 // In production, use Modal API URL from env var
 // In development, use empty string (Vite proxy handles routing)
-const API_BASE = import.meta.env.VITE_API_URL || '';
+export const API_BASE = import.meta.env.VITE_API_URL || '';
 
 const api = axios.create({
     baseURL: API_BASE,
     timeout: 120000, // 2 minute timeout for cold starts
 });
+
+// Helper to get full URL for resources (handles both dev and prod)
+export function getFullApiUrl(path: string): string {
+    if (!path) return '';
+    // If path is already absolute, return as-is
+    if (path.startsWith('http')) return path;
+    // Otherwise prepend API_BASE
+    return `${API_BASE}${path}`;
+}
+
 
 export async function uploadImage(file: File): Promise<ImageUploadResponse> {
     const formData = new FormData();
