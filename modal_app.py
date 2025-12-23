@@ -176,23 +176,49 @@ def fastapi_app():
         # Store initial job state
         jobs[job_id] = SplatJob(jobId=job_id, status="processing")
         
-        # Run Sharp inference (synchronous for now)
+        # Run Sharp inference via CLI
         start_time = time.time()
 
         try:
-            sys.path.insert(0, "/opt/ml-sharp")
-            from sharp.sharp import Sharp
+            import subprocess
             
-            model = Sharp()
-            model.predict(image_path, output_path)
+            # Sharp CLI creates output in a directory, with splat.ply inside
+            output_dir = f"/outputs/splats/{job_id}"
+            Path(output_dir).mkdir(parents=True, exist_ok=True)
+            
+            cmd = [
+                "sharp", "predict",
+                "-i", image_path,
+                "-o", output_dir,
+            ]
+            
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=600,  # 10 minute timeout
+            )
+            
+            if result.returncode != 0:
+                raise Exception(f"Sharp failed: {result.stderr}")
+            
+            # Find the output PLY file
+            ply_file = Path(output_dir) / "splat.ply"
+            if not ply_file.exists():
+                # Check for other ply files
+                ply_files = list(Path(output_dir).glob("*.ply"))
+                if ply_files:
+                    ply_file = ply_files[0]
+                else:
+                    raise Exception(f"No PLY output found in {output_dir}")
             
             elapsed_ms = int((time.time() - start_time) * 1000)
             
             jobs[job_id] = SplatJob(
                 jobId=job_id,
                 status="complete",
-                splatUrl=f"/api/download/{job_id}.ply",
-                splatPath=output_path,
+                splatUrl=f"/api/download/{job_id}/{ply_file.name}",
+                splatPath=str(ply_file),
                 processingTimeMs=elapsed_ms,
             )
         except Exception as e:
@@ -203,6 +229,7 @@ def fastapi_app():
             )
         
         return jobs[job_id]
+
     
     @web_app.get("/api/status/{job_id}")
     async def get_status(job_id: str):
@@ -210,14 +237,18 @@ def fastapi_app():
             raise HTTPException(status_code=404, detail="Job not found")
         return jobs[job_id]
     
-    @web_app.get("/api/download/{filename}")
-    async def download_file(filename: str):
-        file_path = Path("/outputs/splats") / filename
+    @web_app.get("/api/download/{job_id}/{filename}")
+    async def download_file(job_id: str, filename: str):
+        file_path = Path("/outputs/splats") / job_id / filename
+        if not file_path.exists():
+            # Try without job_id subdirectory
+            file_path = Path("/outputs/splats") / filename
         if not file_path.exists():
             file_path = Path("/outputs/meshes") / filename
         if not file_path.exists():
             raise HTTPException(status_code=404, detail="File not found")
         return FileResponse(str(file_path), filename=filename)
+
     
     return web_app
 
