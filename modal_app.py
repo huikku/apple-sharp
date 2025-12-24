@@ -468,81 +468,104 @@ def fastapi_app():
     
     @web_app.post("/api/mesh/convert")
     async def convert_mesh(request: MeshConvertRequest):
-        import open3d as o3d
-        import numpy as np
-        from plyfile import PlyData
-        
-        # Reload volume
-        outputs_volume.reload()
-        
-        splat_path = request.splat_path
-        if not Path(splat_path).exists():
-            raise HTTPException(status_code=404, detail="Splat file not found")
-        
-        # Load PLY
-        ply_data = PlyData.read(splat_path)
-        vertex = ply_data['vertex']
-        points = np.vstack([vertex['x'], vertex['y'], vertex['z']]).T
-        
-        # Get colors if available
-        colors = None
-        if 'red' in vertex.data.dtype.names:
-            colors = np.vstack([
-                vertex['red'] / 255.0,
-                vertex['green'] / 255.0,
-                vertex['blue'] / 255.0
-            ]).T
-        
-        # Create point cloud
-        pcd = o3d.geometry.PointCloud()
-        pcd.points = o3d.utility.Vector3dVector(points)
-        if colors is not None:
-            pcd.colors = o3d.utility.Vector3dVector(colors)
-        
-        # Estimate normals
-        pcd.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=30))
-        pcd.orient_normals_consistent_tangent_plane(k=15)
-        
-        # Convert to mesh
-        if request.method == "poisson":
-            mesh, _ = o3d.geometry.TriangleMesh.create_from_point_cloud_poisson(
-                pcd, depth=request.depth
+        try:
+            import open3d as o3d
+            import numpy as np
+            from plyfile import PlyData
+            
+            # Reload volume
+            outputs_volume.reload()
+            
+            splat_path = request.splat_path
+            if not Path(splat_path).exists():
+                raise HTTPException(status_code=404, detail=f"Splat file not found: {splat_path}")
+            
+            print(f"[Mesh] Converting {splat_path} using {request.method}")
+            
+            # Load PLY
+            ply_data = PlyData.read(splat_path)
+            vertex = ply_data['vertex']
+            points = np.vstack([vertex['x'], vertex['y'], vertex['z']]).T
+            
+            print(f"[Mesh] Loaded {len(points)} points")
+            
+            # Get colors if available (try multiple formats)
+            colors = None
+            if 'red' in vertex.data.dtype.names:
+                colors = np.vstack([
+                    vertex['red'] / 255.0,
+                    vertex['green'] / 255.0,
+                    vertex['blue'] / 255.0
+                ]).T
+            elif 'f_dc_0' in vertex.data.dtype.names:
+                # Convert spherical harmonics to RGB
+                SH_C0 = 0.28209479177387814
+                colors = np.vstack([
+                    np.clip(vertex['f_dc_0'] * SH_C0 + 0.5, 0, 1),
+                    np.clip(vertex['f_dc_1'] * SH_C0 + 0.5, 0, 1),
+                    np.clip(vertex['f_dc_2'] * SH_C0 + 0.5, 0, 1),
+                ]).T
+            
+            # Create point cloud
+            pcd = o3d.geometry.PointCloud()
+            pcd.points = o3d.utility.Vector3dVector(points)
+            if colors is not None:
+                pcd.colors = o3d.utility.Vector3dVector(colors)
+            
+            # Estimate normals
+            print("[Mesh] Estimating normals...")
+            pcd.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=30))
+            pcd.orient_normals_consistent_tangent_plane(k=15)
+            
+            # Convert to mesh
+            print(f"[Mesh] Running {request.method} reconstruction...")
+            if request.method == "poisson":
+                mesh, _ = o3d.geometry.TriangleMesh.create_from_point_cloud_poisson(
+                    pcd, depth=request.depth
+                )
+            elif request.method == "ball_pivoting":
+                distances = pcd.compute_nearest_neighbor_distance()
+                avg_dist = np.mean(distances)
+                radii = [avg_dist, avg_dist * 2, avg_dist * 4]
+                mesh = o3d.geometry.TriangleMesh.create_from_point_cloud_ball_pivoting(
+                    pcd, o3d.utility.DoubleVector(radii)
+                )
+            else:  # alpha_shape
+                mesh = o3d.geometry.TriangleMesh.create_from_point_cloud_alpha_shape(
+                    pcd, request.alpha
+                )
+            
+            # Generate output filename
+            mesh_id = str(uuid.uuid4())[:8]
+            filename = f"mesh_{mesh_id}.{request.output_format}"
+            output_path = f"/outputs/meshes/{filename}"
+            
+            # Save mesh
+            print(f"[Mesh] Saving to {output_path}")
+            if request.output_format == "glb":
+                o3d.io.write_triangle_mesh(output_path, mesh, write_vertex_colors=True)
+            else:
+                o3d.io.write_triangle_mesh(output_path, mesh)
+            
+            outputs_volume.commit()
+            
+            print(f"[Mesh] Complete: {len(mesh.vertices)} vertices, {len(mesh.triangles)} faces")
+            
+            return MeshConvertResponse(
+                success=True,
+                mesh_path=output_path,
+                mesh_filename=filename,
+                vertex_count=len(mesh.vertices),
+                face_count=len(mesh.triangles),
+                method=request.method,
+                format=request.output_format,
+                download_url=f"/api/mesh/download/{filename}",
             )
-        elif request.method == "ball_pivoting":
-            distances = pcd.compute_nearest_neighbor_distance()
-            avg_dist = np.mean(distances)
-            radii = [avg_dist, avg_dist * 2, avg_dist * 4]
-            mesh = o3d.geometry.TriangleMesh.create_from_point_cloud_ball_pivoting(
-                pcd, o3d.utility.DoubleVector(radii)
-            )
-        else:  # alpha_shape
-            mesh = o3d.geometry.TriangleMesh.create_from_point_cloud_alpha_shape(
-                pcd, request.alpha
-            )
-        
-        # Generate output filename
-        mesh_id = str(uuid.uuid4())[:8]
-        filename = f"mesh_{mesh_id}.{request.output_format}"
-        output_path = f"/outputs/meshes/{filename}"
-        
-        # Save mesh
-        if request.output_format == "glb":
-            o3d.io.write_triangle_mesh(output_path, mesh, write_vertex_colors=True)
-        else:
-            o3d.io.write_triangle_mesh(output_path, mesh)
-        
-        outputs_volume.commit()
-        
-        return MeshConvertResponse(
-            success=True,
-            mesh_path=output_path,
-            mesh_filename=filename,
-            vertex_count=len(mesh.vertices),
-            face_count=len(mesh.triangles),
-            method=request.method,
-            format=request.output_format,
-            download_url=f"/api/mesh/download/{filename}",
-        )
+        except HTTPException:
+            raise
+        except Exception as e:
+            print(f"[Mesh] Error: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Mesh conversion failed: {str(e)}")
     
     @web_app.get("/api/mesh/download/{filename}")
     async def download_mesh(filename: str):

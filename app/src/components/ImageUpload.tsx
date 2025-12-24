@@ -65,7 +65,9 @@ export function ImageUpload({ onUpload, uploadedImage, isUploading, disabled }: 
                     {uploadedImage && (
                         <div className="flex gap-4 text-xs text-muted">
                             <span className="font-mono">{uploadedImage.width}×{uploadedImage.height}</span>
-                            <span className="font-mono">{(uploadedImage.size / 1024).toFixed(1)} KB</span>
+                            <span className="font-mono">
+                                {uploadedImage.size ? `${(uploadedImage.size / 1024).toFixed(1)} KB` : ''}
+                            </span>
                         </div>
                     )}
 
