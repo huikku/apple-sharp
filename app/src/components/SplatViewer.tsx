@@ -11,6 +11,7 @@ interface SplatViewerProps {
     pointSize?: number;
     showColors?: boolean;
     pointShape?: 'square' | 'circle';
+    onError?: (error: string) => void;
 }
 
 interface PointCloudMeshProps {
@@ -18,9 +19,10 @@ interface PointCloudMeshProps {
     pointSize?: number;
     showColors?: boolean;
     pointShape?: 'square' | 'circle';
+    onError?: (error: string) => void;
 }
 
-function PointCloudMesh({ url, pointSize = 0.005, showColors = true, pointShape = 'circle' }: PointCloudMeshProps) {
+function PointCloudMesh({ url, pointSize = 0.005, showColors = true, pointShape = 'circle', onError }: PointCloudMeshProps) {
     const [geometry, setGeometry] = useState<THREE.BufferGeometry | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -44,8 +46,10 @@ function PointCloudMesh({ url, pointSize = 0.005, showColors = true, pointShape 
                 setGeometry(geo);
             } catch (err) {
                 if (cancelled) return;
+                const errorMsg = err instanceof Error ? err.message : 'Failed to load';
                 console.error('Failed to load Gaussian splat:', err);
-                setError(err instanceof Error ? err.message : 'Failed to load');
+                setError(errorMsg);
+                onError?.(errorMsg);
             } finally {
                 if (!cancelled) setLoading(false);
             }
@@ -148,7 +152,8 @@ export function SplatViewer({
     autoRotate = false,
     pointSize = 0.005,
     showColors = true,
-    pointShape = 'circle'
+    pointShape = 'circle',
+    onError
 }: SplatViewerProps) {
     return (
         <div className="bg-card rounded-md border border-metal overflow-hidden h-full flex flex-col">
@@ -174,7 +179,7 @@ export function SplatViewer({
 
                         <Suspense fallback={<LoadingFallback />}>
                             <RotatingGroup autoRotate={autoRotate}>
-                                <PointCloudMesh url={splatUrl} pointSize={pointSize} showColors={showColors} pointShape={pointShape} />
+                                <PointCloudMesh url={splatUrl} pointSize={pointSize} showColors={showColors} pointShape={pointShape} onError={onError} />
                             </RotatingGroup>
                         </Suspense>
 

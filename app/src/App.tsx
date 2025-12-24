@@ -188,6 +188,11 @@ function App() {
             pointSize={pointSize}
             showColors={showColors}
             pointShape={pointShape}
+            onError={(error) => {
+              logError('VIEWER', `Failed to load splat: ${error}`);
+              setError(`Failed to load 3D model: ${error}`);
+              setStatus('error');
+            }}
           />
         </div>
 
