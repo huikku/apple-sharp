@@ -403,6 +403,19 @@ def fastapi_app():
                     media_type="application/octet-stream"
                 )
             
+            # Fallback: try to find ANY PLY file in the job directory
+            splat_dir = Path("/outputs/splats") / job_id
+            if splat_dir.exists():
+                ply_files = list(splat_dir.glob("*.ply"))
+                if ply_files:
+                    found_file = ply_files[0]
+                    print(f"[Download] Exact file not found, using fallback: {found_file.name}")
+                    return FileResponse(
+                        path=str(found_file),
+                        filename=found_file.name,
+                        media_type="application/octet-stream"
+                    )
+            
             # Wait and retry
             if attempt < max_retries - 1:
                 await asyncio.sleep(2)  # Wait 2 seconds between retries
