@@ -2,7 +2,7 @@
 Modal deployment wrapper for Sharp API.
 
 This file configures the Sharp FastAPI backend to run on Modal's
-serverless GPU infrastructure.
+serverless GPU infrastructure with true async job queuing.
 
 Deploy with: modal deploy modal_app.py
 Test locally: modal serve modal_app.py
@@ -54,28 +54,111 @@ image = (
 # Create the Modal app
 app = modal.App("sharp-api", image=image)
 
-# Persistent volume for model cache (avoids re-downloading 2.8GB model)
+# Persistent volumes
 model_cache = modal.Volume.from_name("sharp-model-cache", create_if_missing=True)
 outputs_volume = modal.Volume.from_name("sharp-outputs", create_if_missing=True)
 
+# Persistent job state dict (survives across requests)
+job_dict = modal.Dict.from_name("sharp-jobs", create_if_missing=True)
+
 
 @app.function(
-    gpu="T4",  # T4 is cheapest, use "A10G" for faster inference
+    gpu="T4",
     volumes={
         "/model-cache": model_cache,
         "/outputs": outputs_volume,
     },
-    timeout=600,  # 10 minute timeout for long operations
-    memory=8192,  # 8GB RAM
+    timeout=600,
+    memory=8192,
 )
-@modal.concurrent(max_inputs=5)
+def run_sharp_inference(job_id: str, image_path: str):
+    """
+    Run Sharp inference in the background.
+    This function is spawned asynchronously and updates job state in Dict.
+    """
+    import time
+    import subprocess
+    from pathlib import Path
+    
+    start_time = time.time()
+    
+    try:
+        # Update status to processing
+        job_dict[job_id] = {
+            "jobId": job_id,
+            "status": "processing",
+            "queuePosition": 0,
+            "estimatedWaitSeconds": 0,
+        }
+        
+        # Create output directory
+        output_dir = f"/outputs/splats/{job_id}"
+        Path(output_dir).mkdir(parents=True, exist_ok=True)
+        
+        # Run Sharp CLI
+        cmd = [
+            "sharp", "predict",
+            "-i", image_path,
+            "-o", output_dir,
+        ]
+        
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=600,
+        )
+        
+        if result.returncode != 0:
+            raise Exception(f"Sharp failed: {result.stderr}")
+        
+        # Find output PLY file
+        ply_file = Path(output_dir) / "splat.ply"
+        if not ply_file.exists():
+            ply_files = list(Path(output_dir).glob("*.ply"))
+            if ply_files:
+                ply_file = ply_files[0]
+            else:
+                raise Exception(f"No PLY output found in {output_dir}")
+        
+        elapsed_ms = int((time.time() - start_time) * 1000)
+        
+        # Update to complete
+        job_dict[job_id] = {
+            "jobId": job_id,
+            "status": "complete",
+            "splatUrl": f"/api/download/{job_id}/{ply_file.name}",
+            "splatPath": str(ply_file),
+            "processingTimeMs": elapsed_ms,
+            "queuePosition": 0,
+            "estimatedWaitSeconds": 0,
+        }
+        
+        # Sync volume to persist output
+        outputs_volume.commit()
+        
+    except Exception as e:
+        job_dict[job_id] = {
+            "jobId": job_id,
+            "status": "error",
+            "error": str(e),
+            "queuePosition": 0,
+            "estimatedWaitSeconds": 0,
+        }
+
+
+@app.function(
+    volumes={
+        "/outputs": outputs_volume,
+    },
+    timeout=120,
+    memory=2048,
+)
+@modal.concurrent(max_inputs=100)  # Handle many status checks
 @modal.asgi_app()
 def fastapi_app():
-    """Serve the Sharp FastAPI application."""
-    import sys
-    import os
+    """Serve the Sharp FastAPI application (lightweight, no GPU)."""
     import uuid
-    import time
     from pathlib import Path
     
     from fastapi import FastAPI, UploadFile, File, HTTPException
@@ -88,32 +171,23 @@ def fastapi_app():
     Path("/outputs/splats").mkdir(parents=True, exist_ok=True)
     Path("/outputs/meshes").mkdir(parents=True, exist_ok=True)
     
-    # Create FastAPI app
     web_app = FastAPI(
         title="Sharp API",
         description="Apple Sharp monocular view synthesis - deployed on Modal",
-        version="1.0.0",
+        version="2.0.0",
     )
     
-    # CORS for GitHub Pages and local development
     web_app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],  # Allow all origins for now
+        allow_origins=["*"],
         allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
     )
     
-    # Job and queue storage (in-memory)
-    jobs = {}
-    job_queue = []  # List of job IDs in order
-    active_jobs = set()  # Currently processing jobs
-    MAX_CONCURRENT = 3  # Max simultaneous processing jobs
-    AVG_PROCESSING_TIME = 45  # Average seconds per job
-    
     class SplatJob(BaseModel):
         jobId: str
-        status: str  # 'queued', 'processing', 'complete', 'error'
+        status: str
         splatUrl: str | None = None
         splatPath: str | None = None
         processingTimeMs: int | None = None
@@ -121,30 +195,14 @@ def fastapi_app():
         queuePosition: int | None = None
         estimatedWaitSeconds: int | None = None
     
-    class QueueStatus(BaseModel):
-        activeJobs: int
-        queueLength: int
-        maxConcurrent: int
-        yourPosition: int | None = None
-        estimatedWaitSeconds: int | None = None
-    
-    def get_queue_position(job_id: str) -> tuple[int, int]:
-        """Get queue position and estimated wait time for a job."""
-        if job_id in active_jobs:
-            return 0, 0  # Currently processing
-        try:
-            pos = job_queue.index(job_id) + 1
-            # Estimate: (position / concurrent slots) * avg time
-            wait = int((pos / MAX_CONCURRENT) * AVG_PROCESSING_TIME)
-            return pos, wait
-        except ValueError:
-            return 0, 0
+    class GenerateRequest(BaseModel):
+        imageId: str
     
     @web_app.get("/")
     async def root():
         return {
             "name": "Sharp API (Modal)",
-            "version": "1.0.0",
+            "version": "2.0.0",
             "docs": "/docs",
             "health": "/api/health",
             "queue": "/api/queue",
@@ -152,25 +210,46 @@ def fastapi_app():
     
     @web_app.get("/api/health")
     async def health_check():
-        import torch
+        # Count active jobs from dict
+        active_count = 0
+        queued_count = 0
+        try:
+            for key in job_dict.keys():
+                job = job_dict.get(key, {})
+                if job.get("status") == "processing":
+                    active_count += 1
+                elif job.get("status") == "queued":
+                    queued_count += 1
+        except:
+            pass
+        
         return {
             "status": "ok",
             "service": "sharp-api-modal",
-            "cuda_available": torch.cuda.is_available(),
-            "gpu": torch.cuda.get_device_name(0) if torch.cuda.is_available() else None,
-            "activeJobs": len(active_jobs),
-            "queueLength": len(job_queue),
+            "version": "2.0.0",
+            "activeJobs": active_count,
+            "queuedJobs": queued_count,
         }
     
     @web_app.get("/api/queue")
     async def get_queue_status():
-        """Get current queue status."""
-        return QueueStatus(
-            activeJobs=len(active_jobs),
-            queueLength=len(job_queue),
-            maxConcurrent=MAX_CONCURRENT,
-        )
-
+        active_count = 0
+        queued_count = 0
+        try:
+            for key in job_dict.keys():
+                job = job_dict.get(key, {})
+                if job.get("status") == "processing":
+                    active_count += 1
+                elif job.get("status") == "queued":
+                    queued_count += 1
+        except:
+            pass
+        
+        return {
+            "activeJobs": active_count,
+            "queuedJobs": queued_count,
+            "maxConcurrent": 3,
+        }
     
     @web_app.post("/api/upload")
     async def upload_image(file: UploadFile = File(...)):
@@ -182,7 +261,9 @@ def fastapi_app():
         with open(save_path, "wb") as f:
             f.write(content)
         
-        # Get image dimensions
+        # Sync volume
+        outputs_volume.commit()
+        
         from PIL import Image
         img = Image.open(save_path)
         width, height = img.size
@@ -194,11 +275,12 @@ def fastapi_app():
             "height": height,
         }
     
-    class GenerateRequest(BaseModel):
-        imageId: str
-    
     @web_app.post("/api/generate")
     async def generate_splat(request: GenerateRequest):
+        """
+        Queue a job for Sharp inference.
+        Returns immediately with job ID - processing happens async.
+        """
         image_id = request.imageId
         job_id = str(uuid.uuid4())
         
@@ -210,125 +292,207 @@ def fastapi_app():
         
         image_path = str(image_files[0])
         
-        # Add to queue
-        job_queue.append(job_id)
-        pos, wait = get_queue_position(job_id)
-        
-        # Store initial job state with queue info
-        jobs[job_id] = SplatJob(
-            jobId=job_id, 
-            status="queued",
-            queuePosition=pos,
-            estimatedWaitSeconds=wait,
-        )
-        
-        # Check if we can start processing
-        if len(active_jobs) >= MAX_CONCURRENT:
-            # Return queued status
-            return jobs[job_id]
-        
-        # Start processing
-        active_jobs.add(job_id)
-        if job_id in job_queue:
-            job_queue.remove(job_id)
-        jobs[job_id].status = "processing"
-        jobs[job_id].queuePosition = 0
-        jobs[job_id].estimatedWaitSeconds = 0
-        
-        # Run Sharp inference via CLI
-        start_time = time.time()
-
+        # Count current queue position
+        queued_count = 0
         try:
-            import subprocess
-            
-            # Sharp CLI creates output in a directory, with splat.ply inside
-            output_dir = f"/outputs/splats/{job_id}"
-            Path(output_dir).mkdir(parents=True, exist_ok=True)
-            
-            cmd = [
-                "sharp", "predict",
-                "-i", image_path,
-                "-o", output_dir,
-            ]
-            
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=600,  # 10 minute timeout
-            )
-            
-            if result.returncode != 0:
-                raise Exception(f"Sharp failed: {result.stderr}")
-            
-            # Find the output PLY file
-            ply_file = Path(output_dir) / "splat.ply"
-            if not ply_file.exists():
-                # Check for other ply files
-                ply_files = list(Path(output_dir).glob("*.ply"))
-                if ply_files:
-                    ply_file = ply_files[0]
-                else:
-                    raise Exception(f"No PLY output found in {output_dir}")
-            
-            elapsed_ms = int((time.time() - start_time) * 1000)
-            
-            jobs[job_id] = SplatJob(
-                jobId=job_id,
-                status="complete",
-                splatUrl=f"/api/download/{job_id}/{ply_file.name}",
-                splatPath=str(ply_file),
-                processingTimeMs=elapsed_ms,
-                queuePosition=0,
-                estimatedWaitSeconds=0,
-            )
-        except Exception as e:
-            jobs[job_id] = SplatJob(
-                jobId=job_id,
-                status="error",
-                error=str(e),
-                queuePosition=0,
-                estimatedWaitSeconds=0,
-            )
-        finally:
-            # Remove from active jobs
-            active_jobs.discard(job_id)
+            for key in job_dict.keys():
+                job = job_dict.get(key, {})
+                if job.get("status") in ["queued", "processing"]:
+                    queued_count += 1
+        except:
+            pass
         
-        return jobs[job_id]
-
+        # Store initial job state - QUEUED
+        job_dict[job_id] = {
+            "jobId": job_id,
+            "status": "queued",
+            "queuePosition": queued_count + 1,
+            "estimatedWaitSeconds": (queued_count + 1) * 45,
+        }
+        
+        # Spawn Sharp inference in background (non-blocking!)
+        run_sharp_inference.spawn(job_id, image_path)
+        
+        # Return immediately with queued status
+        return SplatJob(
+            jobId=job_id,
+            status="queued",
+            queuePosition=queued_count + 1,
+            estimatedWaitSeconds=(queued_count + 1) * 45,
+        )
     
     @web_app.get("/api/status/{job_id}")
     async def get_status(job_id: str):
-        if job_id not in jobs:
+        try:
+            job = job_dict.get(job_id)
+            if not job:
+                raise HTTPException(status_code=404, detail="Job not found")
+            return SplatJob(**job)
+        except KeyError:
             raise HTTPException(status_code=404, detail="Job not found")
-        
-        # Update queue position if still queued
-        job = jobs[job_id]
-        if job.status == "queued":
-            pos, wait = get_queue_position(job_id)
-            job.queuePosition = pos
-            job.estimatedWaitSeconds = wait
-        
-        return job
-
     
     @web_app.get("/api/download/{job_id}/{filename}")
     async def download_file(job_id: str, filename: str):
+        # Reload volume to get latest files
+        outputs_volume.reload()
+        
         file_path = Path("/outputs/splats") / job_id / filename
         if not file_path.exists():
-            # Try without job_id subdirectory
-            file_path = Path("/outputs/splats") / filename
-        if not file_path.exists():
-            file_path = Path("/outputs/meshes") / filename
-        if not file_path.exists():
             raise HTTPException(status_code=404, detail="File not found")
-        return FileResponse(str(file_path), filename=filename)
-
+        
+        return FileResponse(
+            path=str(file_path),
+            filename=filename,
+            media_type="application/octet-stream"
+        )
+    
+    # ========== Mesh Conversion Endpoints ==========
+    
+    class MeshConvertRequest(BaseModel):
+        splat_path: str
+        method: str = "poisson"
+        output_format: str = "obj"
+        depth: int = 8
+        alpha: float = 0.03
+    
+    class MeshConvertResponse(BaseModel):
+        success: bool
+        mesh_path: str
+        mesh_filename: str
+        vertex_count: int
+        face_count: int
+        method: str
+        format: str
+        download_url: str
+    
+    @web_app.get("/api/mesh/methods")
+    async def get_mesh_methods():
+        return {
+            "methods": [
+                {
+                    "id": "poisson",
+                    "name": "Poisson Surface Reconstruction",
+                    "description": "Creates smooth, watertight surfaces",
+                    "parameters": [
+                        {"name": "depth", "type": "int", "default": 8, "range": [6, 12]}
+                    ]
+                },
+                {
+                    "id": "ball_pivoting",
+                    "name": "Ball Pivoting Algorithm",
+                    "description": "Preserves original point positions",
+                    "parameters": [
+                        {"name": "radii", "type": "float", "default": 0, "range": [0, 0.1]}
+                    ]
+                },
+                {
+                    "id": "alpha_shape",
+                    "name": "Alpha Shapes",
+                    "description": "Fast with concave features",
+                    "parameters": [
+                        {"name": "alpha", "type": "float", "default": 0.03, "range": [0.01, 0.1]}
+                    ]
+                }
+            ],
+            "formats": ["obj", "glb", "ply"]
+        }
+    
+    @web_app.post("/api/mesh/convert")
+    async def convert_mesh(request: MeshConvertRequest):
+        import open3d as o3d
+        import numpy as np
+        from plyfile import PlyData
+        
+        # Reload volume
+        outputs_volume.reload()
+        
+        splat_path = request.splat_path
+        if not Path(splat_path).exists():
+            raise HTTPException(status_code=404, detail="Splat file not found")
+        
+        # Load PLY
+        ply_data = PlyData.read(splat_path)
+        vertex = ply_data['vertex']
+        points = np.vstack([vertex['x'], vertex['y'], vertex['z']]).T
+        
+        # Get colors if available
+        colors = None
+        if 'red' in vertex.data.dtype.names:
+            colors = np.vstack([
+                vertex['red'] / 255.0,
+                vertex['green'] / 255.0,
+                vertex['blue'] / 255.0
+            ]).T
+        
+        # Create point cloud
+        pcd = o3d.geometry.PointCloud()
+        pcd.points = o3d.utility.Vector3dVector(points)
+        if colors is not None:
+            pcd.colors = o3d.utility.Vector3dVector(colors)
+        
+        # Estimate normals
+        pcd.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=30))
+        pcd.orient_normals_consistent_tangent_plane(k=15)
+        
+        # Convert to mesh
+        if request.method == "poisson":
+            mesh, _ = o3d.geometry.TriangleMesh.create_from_point_cloud_poisson(
+                pcd, depth=request.depth
+            )
+        elif request.method == "ball_pivoting":
+            distances = pcd.compute_nearest_neighbor_distance()
+            avg_dist = np.mean(distances)
+            radii = [avg_dist, avg_dist * 2, avg_dist * 4]
+            mesh = o3d.geometry.TriangleMesh.create_from_point_cloud_ball_pivoting(
+                pcd, o3d.utility.DoubleVector(radii)
+            )
+        else:  # alpha_shape
+            mesh = o3d.geometry.TriangleMesh.create_from_point_cloud_alpha_shape(
+                pcd, request.alpha
+            )
+        
+        # Generate output filename
+        mesh_id = str(uuid.uuid4())[:8]
+        filename = f"mesh_{mesh_id}.{request.output_format}"
+        output_path = f"/outputs/meshes/{filename}"
+        
+        # Save mesh
+        if request.output_format == "glb":
+            o3d.io.write_triangle_mesh(output_path, mesh, write_vertex_colors=True)
+        else:
+            o3d.io.write_triangle_mesh(output_path, mesh)
+        
+        outputs_volume.commit()
+        
+        return MeshConvertResponse(
+            success=True,
+            mesh_path=output_path,
+            mesh_filename=filename,
+            vertex_count=len(mesh.vertices),
+            face_count=len(mesh.triangles),
+            method=request.method,
+            format=request.output_format,
+            download_url=f"/api/mesh/download/{filename}",
+        )
+    
+    @web_app.get("/api/mesh/download/{filename}")
+    async def download_mesh(filename: str):
+        outputs_volume.reload()
+        
+        file_path = Path("/outputs/meshes") / filename
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail="Mesh file not found")
+        
+        content_type = {
+            ".obj": "text/plain",
+            ".glb": "model/gltf-binary",
+            ".ply": "application/octet-stream",
+        }.get(file_path.suffix, "application/octet-stream")
+        
+        return FileResponse(
+            path=str(file_path),
+            filename=filename,
+            media_type=content_type
+        )
     
     return web_app
-
-
-# Optional: CLI entry point for local testing
-if __name__ == "__main__":
-    print("Deploy with: modal deploy modal_app.py")
-    print("Test locally: modal serve modal_app.py")
