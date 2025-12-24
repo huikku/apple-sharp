@@ -197,6 +197,32 @@ function MeshingTab() {
                     </div>
                 </div>
             </section>
+
+            <section>
+                <h3 className="font-display text-lg mb-3 text-warning">Camera Parameters</h3>
+                <p className="leading-relaxed mb-3">
+                    Sharp reconstructs the scene from the original camera's viewpoint. For projection
+                    mapping and texture reprojection, use these camera settings:
+                </p>
+                <div className="bg-plate rounded-md p-4 font-mono text-xs mb-3">
+                    <div className="grid grid-cols-2 gap-2">
+                        <span className="text-muted">Position:</span>
+                        <span>(0, 0, 0)</span>
+                        <span className="text-muted">Look At:</span>
+                        <span>(0, 0, 1)</span>
+                        <span className="text-muted">Up Vector:</span>
+                        <span>(0, -1, 0)</span>
+                        <span className="text-muted">FOV:</span>
+                        <span>60°</span>
+                        <span className="text-muted">Coordinate System:</span>
+                        <span>OpenCV (X-right, Y-down, Z-forward)</span>
+                    </div>
+                </div>
+                <div className="text-xs text-muted">
+                    <strong>Blender workflow:</strong> Import mesh → Create camera at origin →
+                    Point toward +Z → Set FOV 60° → Use "Project from View" UV mapping
+                </div>
+            </section>
         </div>
     );
 }

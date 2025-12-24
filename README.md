@@ -63,6 +63,25 @@ Generalizes convex hulls to follow concave regions. Fast but may have holes in s
 | `.GLB` | Web/mobile, includes materials |
 | `.PLY` | Point clouds, preserves vertex colors |
 
+### Camera Parameters for Projection Mapping
+
+Sharp reconstructs scenes from the original camera's viewpoint. For texture reprojection in 3D software:
+
+| Parameter | Value |
+|-----------|-------|
+| Position | (0, 0, 0) |
+| Look At | (0, 0, 1) |
+| Up Vector | (0, -1, 0) |
+| FOV | 60° |
+| Coordinate System | OpenCV (X-right, Y-down, Z-forward) |
+
+**Blender Workflow:**
+1. Import mesh (OBJ/GLB)
+2. Create camera at origin (0, 0, 0)
+3. Point camera toward +Z
+4. Set FOV to 60°
+5. Use "Project from View" for UV mapping
+
 ---
 
 ## Quick Start (Local Development)
