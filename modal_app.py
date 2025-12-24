@@ -229,9 +229,17 @@ def fastapi_app():
         version="2.0.0",
     )
     
+    # SECURITY: Restrict CORS to known frontend origins
+    ALLOWED_ORIGINS = [
+        "https://huikku.github.io",  # Production GitHub Pages
+        "http://localhost:5173",     # Local Vite dev server
+        "http://localhost:3000",     # Alternative local dev
+        "http://127.0.0.1:5173",
+    ]
+    
     web_app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=ALLOWED_ORIGINS,
         allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -244,12 +252,16 @@ def fastapi_app():
     
     @web_app.exception_handler(Exception)
     async def cors_exception_handler(request: Request, exc: Exception):
+        # Check if origin is allowed
+        origin = request.headers.get("origin", "")
+        cors_origin = origin if origin in ALLOWED_ORIGINS else ALLOWED_ORIGINS[0]
+        
         print(f"[API] Unhandled exception: {type(exc).__name__}: {str(exc)}")
         return JSONResponse(
             status_code=500,
             content={"detail": f"Internal error: {str(exc)}"},
             headers={
-                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Origin": cors_origin,
                 "Access-Control-Allow-Methods": "*",
                 "Access-Control-Allow-Headers": "*",
             }
@@ -324,11 +336,28 @@ def fastapi_app():
     
     @web_app.post("/api/upload")
     async def upload_image(file: UploadFile = File(...)):
-        image_id = str(uuid.uuid4())
-        ext = Path(file.filename or "image.png").suffix or ".png"
-        save_path = f"/outputs/uploads/{image_id}{ext}"
+        # SECURITY: File size limit (20MB)
+        MAX_FILE_SIZE = 20 * 1024 * 1024  # 20MB
         
         content = await file.read()
+        if len(content) > MAX_FILE_SIZE:
+            raise HTTPException(
+                status_code=413, 
+                detail=f"File too large. Maximum size is {MAX_FILE_SIZE // (1024*1024)}MB"
+            )
+        
+        # Validate file extension
+        allowed_extensions = {'.jpg', '.jpeg', '.png', '.webp', '.gif'}
+        ext = Path(file.filename or "image.png").suffix.lower() or ".png"
+        if ext not in allowed_extensions:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid file type. Allowed: {', '.join(allowed_extensions)}"
+            )
+        
+        image_id = str(uuid.uuid4())
+        save_path = f"/outputs/uploads/{image_id}{ext}"
+        
         with open(save_path, "wb") as f:
             f.write(content)
         
@@ -405,11 +434,20 @@ def fastapi_app():
     @web_app.get("/api/download/{job_id}/{filename}")
     async def download_file(job_id: str, filename: str):
         import asyncio
+        import os
         
-        file_path = Path("/outputs/splats") / job_id / filename
-        splat_dir = Path("/outputs/splats") / job_id
+        # SECURITY: Sanitize inputs to prevent path traversal
+        safe_job_id = os.path.basename(job_id)
+        safe_filename = os.path.basename(filename)
         
-        print(f"[Download] Request: job_id={job_id}, filename={filename}")
+        if safe_job_id != job_id or safe_filename != filename:
+            print(f"[Download] Blocked path traversal attempt: {job_id}/{filename}")
+            raise HTTPException(status_code=400, detail="Invalid path")
+        
+        file_path = Path("/outputs/splats") / safe_job_id / safe_filename
+        splat_dir = Path("/outputs/splats") / safe_job_id
+        
+        print(f"[Download] Request: job_id={safe_job_id}, filename={safe_filename}")
         print(f"[Download] Looking in: {splat_dir}")
         
         # Retry with volume reloads to handle sync timing
@@ -611,9 +649,17 @@ def fastapi_app():
     
     @web_app.get("/api/mesh/download/{filename}")
     async def download_mesh(filename: str):
+        import os
+        
+        # SECURITY: Sanitize filename to prevent path traversal
+        safe_filename = os.path.basename(filename)
+        if safe_filename != filename:
+            print(f"[Mesh Download] Blocked path traversal attempt: {filename}")
+            raise HTTPException(status_code=400, detail="Invalid path")
+        
         outputs_volume.reload()
         
-        file_path = Path("/outputs/meshes") / filename
+        file_path = Path("/outputs/meshes") / safe_filename
         if not file_path.exists():
             raise HTTPException(status_code=404, detail="Mesh file not found")
         
@@ -625,7 +671,7 @@ def fastapi_app():
         
         return FileResponse(
             path=str(file_path),
-            filename=filename,
+            filename=safe_filename,
             media_type=content_type
         )
     
