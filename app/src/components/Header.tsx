@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import type { JobStatus, SplatJob } from '../types';
 import { StatusIndicator } from './StatusIndicator';
+import { checkHealth } from '../services/api';
 
 interface HeaderProps {
     status: JobStatus;
@@ -8,9 +10,23 @@ interface HeaderProps {
     backendOnline: boolean;
     onDocsClick: () => void;
     currentJob?: SplatJob | null;
+    onServerWake?: () => void;
 }
 
-export function Header({ status, processingTime, error, backendOnline, onDocsClick, currentJob }: HeaderProps) {
+export function Header({ status, processingTime, error, backendOnline, onDocsClick, currentJob, onServerWake }: HeaderProps) {
+    const [isWaking, setIsWaking] = useState(false);
+
+    const handleWakeUp = async () => {
+        setIsWaking(true);
+        try {
+            await checkHealth();
+            onServerWake?.();
+        } catch {
+            // Will retry on next check
+        }
+        setIsWaking(false);
+    };
+
     return (
         <header className="h-14 bg-plate border-b border-metal flex items-center justify-between px-6">
             <div className="flex items-center gap-4">
@@ -53,14 +69,24 @@ export function Header({ status, processingTime, error, backendOnline, onDocsCli
                     Docs
                 </button>
 
+                {/* Server Status */}
                 <div className="flex items-center gap-2">
                     <span
                         className={`inline-block w-1.5 h-1.5 rounded-full ${backendOnline ? 'bg-success' : 'bg-critical'
                             }`}
                     />
                     <span className="text-xs text-muted uppercase tracking-wider">
-                        {backendOnline ? 'API CONNECTED' : 'API OFFLINE'}
+                        {backendOnline ? 'SERVER ONLINE' : 'SERVER OFFLINE'}
                     </span>
+                    {!backendOnline && (
+                        <button
+                            onClick={handleWakeUp}
+                            disabled={isWaking}
+                            className="ml-1 px-2 py-0.5 text-xs rounded bg-warning/20 text-warning border border-warning/50 hover:bg-warning/30 transition-colors disabled:opacity-50"
+                        >
+                            {isWaking ? '...' : 'Wake Up'}
+                        </button>
+                    )}
                 </div>
 
                 <div className="flex items-center gap-1 text-xs text-muted/50">

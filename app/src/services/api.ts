@@ -10,6 +10,16 @@ const api = axios.create({
     timeout: 120000, // 2 minute timeout for cold starts
 });
 
+// Check if backend is reachable
+export async function checkHealth(): Promise<boolean> {
+    try {
+        await api.get('/api/health', { timeout: 30000 });
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 // Helper to get full URL for resources (handles both dev and prod)
 export function getFullApiUrl(path: string): string {
     if (!path) return '';
