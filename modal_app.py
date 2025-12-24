@@ -235,7 +235,25 @@ def fastapi_app():
         allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=["*"],
     )
+    
+    # Add exception handler to ensure CORS headers on errors
+    from starlette.responses import JSONResponse
+    from starlette.requests import Request
+    
+    @web_app.exception_handler(Exception)
+    async def cors_exception_handler(request: Request, exc: Exception):
+        print(f"[API] Unhandled exception: {type(exc).__name__}: {str(exc)}")
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"Internal error: {str(exc)}"},
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "*",
+                "Access-Control-Allow-Headers": "*",
+            }
+        )
     
     class SplatJob(BaseModel):
         jobId: str
