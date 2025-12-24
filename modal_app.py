@@ -333,18 +333,34 @@ def fastapi_app():
     
     @web_app.get("/api/download/{job_id}/{filename}")
     async def download_file(job_id: str, filename: str):
-        # Reload volume to get latest files
-        outputs_volume.reload()
+        import asyncio
         
         file_path = Path("/outputs/splats") / job_id / filename
-        if not file_path.exists():
-            raise HTTPException(status_code=404, detail="File not found")
         
-        return FileResponse(
-            path=str(file_path),
-            filename=filename,
-            media_type="application/octet-stream"
-        )
+        # Retry with volume reloads to handle sync timing
+        max_retries = 5
+        for attempt in range(max_retries):
+            # Reload volume to get latest files
+            outputs_volume.reload()
+            
+            if file_path.exists():
+                return FileResponse(
+                    path=str(file_path),
+                    filename=filename,
+                    media_type="application/octet-stream"
+                )
+            
+            # Wait and retry
+            if attempt < max_retries - 1:
+                await asyncio.sleep(2)  # Wait 2 seconds between retries
+        
+        # Log what files exist for debugging
+        splat_dir = Path("/outputs/splats") / job_id
+        existing_files = list(splat_dir.glob("*")) if splat_dir.exists() else []
+        print(f"[Download] File not found: {file_path}")
+        print(f"[Download] Existing files in {splat_dir}: {[f.name for f in existing_files]}")
+        
+        raise HTTPException(status_code=404, detail=f"File not found after {max_retries} attempts. Dir exists: {splat_dir.exists()}")
     
     # ========== Mesh Conversion Endpoints ==========
     
