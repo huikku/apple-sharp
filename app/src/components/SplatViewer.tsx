@@ -3,6 +3,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Grid } from '@react-three/drei';
 import * as THREE from 'three';
 import { loadGaussianSplatPLY, createGaussianSplatGeometry } from '../utils/gaussianSplatLoader';
+import { setExportGeometry } from '../utils/meshExporter';
 
 interface SplatViewerProps {
     splatUrl?: string;
@@ -50,6 +51,8 @@ function PointCloudMesh({ url, pointSize = 0.005, showColors = true, pointShape 
                 console.log(`Loaded ${data.count} Gaussians with colors`);
                 const geo = createGaussianSplatGeometry(data);
                 setGeometry(geo);
+                // Store geometry for client-side export
+                setExportGeometry(geo);
             } catch (err) {
                 if (cancelled) return;
                 const errorMsg = err instanceof Error ? err.message : 'Failed to load';

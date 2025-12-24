@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { convertToMesh, getMeshDownloadUrl, type MeshConvertRequest } from '../services/api';
+import { exportGeometry, getExportGeometry } from '../utils/meshExporter';
 
 interface OutputsPanelProps {
     splatPath: string | null;
@@ -9,20 +9,11 @@ interface OutputsPanelProps {
     onLog?: (message: string, type: 'info' | 'success' | 'error') => void;
 }
 
-type MeshMethod = 'poisson' | 'ball_pivoting' | 'alpha_shape';
 type ExportFormat = 'obj' | 'glb' | 'ply';
 
-const METHODS: { id: MeshMethod; name: string; desc: string }[] = [
-    { id: 'poisson', name: 'Poisson', desc: 'Best quality' },
-    { id: 'ball_pivoting', name: 'Ball Pivot', desc: 'Faster' },
-    { id: 'alpha_shape', name: 'Alpha', desc: 'Fastest' },
-];
-
-export function OutputsPanel({ splatPath, splatUrl, jobId, isComplete, onLog }: OutputsPanelProps) {
-    const [method, setMethod] = useState<MeshMethod>('poisson');
-    const [format, setFormat] = useState<ExportFormat>('obj');
-    const [isConverting, setIsConverting] = useState(false);
-    const [depth, setDepth] = useState(9);
+export function OutputsPanel({ splatUrl, jobId, isComplete, onLog }: OutputsPanelProps) {
+    const [format, setFormat] = useState<ExportFormat>('ply');
+    const [isExporting, setIsExporting] = useState(false);
 
     const handleDownloadPly = () => {
         if (!splatUrl || !jobId) return;
@@ -35,46 +26,24 @@ export function OutputsPanel({ splatPath, splatUrl, jobId, isComplete, onLog }: 
         onLog?.('Downloading PLY file...', 'info');
     };
 
-    const handleExportMesh = async () => {
-        if (!splatPath) {
-            onLog?.('No splat file to convert', 'error');
+    const handleExport = async () => {
+        const geometry = getExportGeometry();
+        if (!geometry) {
+            onLog?.('No geometry loaded to export. Generate a splat first.', 'error');
             return;
         }
 
-        setIsConverting(true);
-        onLog?.(`Converting to ${format.toUpperCase()} with ${method}...`, 'info');
+        setIsExporting(true);
+        onLog?.(`Exporting ${format.toUpperCase()} from loaded geometry...`, 'info');
 
         try {
-            const request: MeshConvertRequest = {
-                splat_path: splatPath,
-                method,
-                output_format: format,
-            };
-
-            if (method === 'poisson') {
-                request.depth = depth;
-            }
-
-            const result = await convertToMesh(request);
-
-            onLog?.(
-                `Mesh: ${result.vertex_count.toLocaleString()} verts, ${result.face_count.toLocaleString()} faces`,
-                'success'
-            );
-
-            // Trigger download
-            const downloadUrl = getMeshDownloadUrl(result.mesh_filename);
-            const link = document.createElement('a');
-            link.href = downloadUrl;
-            link.download = result.mesh_filename;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+            await exportGeometry(format, jobId || undefined);
+            onLog?.(`${format.toUpperCase()} export complete!`, 'success');
         } catch (err) {
-            const message = err instanceof Error ? err.message : 'Conversion failed';
-            onLog?.(`Mesh error: ${message}`, 'error');
+            const message = err instanceof Error ? err.message : 'Export failed';
+            onLog?.(`Export error: ${message}`, 'error');
         } finally {
-            setIsConverting(false);
+            setIsExporting(false);
         }
     };
 
@@ -102,55 +71,16 @@ export function OutputsPanel({ splatPath, splatUrl, jobId, isComplete, onLog }: 
                         </button>
                     </div>
 
-                    {/* Mesh Export */}
+                    {/* Export Section */}
                     <div className="pt-3 border-t border-metal">
-                        <p className="text-xs text-muted uppercase tracking-wider mb-2">Export Mesh</p>
-
-                        {/* Method Selection */}
-                        <div className="flex gap-1 mb-2">
-                            {METHODS.map((m) => (
-                                <button
-                                    key={m.id}
-                                    onClick={() => setMethod(m.id)}
-                                    className={`
-                                        flex-1 py-1.5 px-1 rounded text-xs font-medium transition-colors border
-                                        ${method === m.id
-                                            ? 'bg-info/20 text-info border-info/50'
-                                            : 'bg-plate text-muted border-metal hover:border-info/50'}
-                                    `}
-                                    title={m.desc}
-                                >
-                                    {m.name}
-                                </button>
-                            ))}
-                        </div>
-
-                        {/* Depth slider for Poisson */}
-                        {method === 'poisson' && (
-                            <div className="mb-2">
-                                <div className="flex justify-between text-xs text-muted mb-1">
-                                    <span>Depth: {depth}</span>
-                                    <span className="text-muted/60">Quality</span>
-                                </div>
-                                <input
-                                    type="range"
-                                    min="6"
-                                    max="12"
-                                    value={depth}
-                                    onChange={(e) => setDepth(parseInt(e.target.value))}
-                                    className="w-full h-1 bg-metal rounded-full appearance-none cursor-pointer
-                                        [&::-webkit-slider-thumb]:appearance-none
-                                        [&::-webkit-slider-thumb]:w-3
-                                        [&::-webkit-slider-thumb]:h-3
-                                        [&::-webkit-slider-thumb]:bg-info
-                                        [&::-webkit-slider-thumb]:rounded-full"
-                                />
-                            </div>
-                        )}
+                        <p className="text-xs text-muted uppercase tracking-wider mb-2">Export Format</p>
+                        <p className="text-xs text-muted mb-2 opacity-70">
+                            Client-side export (no server needed)
+                        </p>
 
                         {/* Format Selection */}
                         <div className="flex gap-1 mb-3">
-                            {(['obj', 'glb', 'ply'] as ExportFormat[]).map((f) => (
+                            {(['ply', 'obj', 'glb'] as ExportFormat[]).map((f) => (
                                 <button
                                     key={f}
                                     onClick={() => setFormat(f)}
@@ -168,19 +98,19 @@ export function OutputsPanel({ splatPath, splatUrl, jobId, isComplete, onLog }: 
 
                         {/* Export Button */}
                         <button
-                            onClick={handleExportMesh}
-                            disabled={isConverting}
+                            onClick={handleExport}
+                            disabled={isExporting}
                             className={`
                                 w-full py-2 rounded text-sm font-medium uppercase tracking-wider transition-colors
-                                ${isConverting
+                                ${isExporting
                                     ? 'bg-metal text-muted cursor-not-allowed'
                                     : 'bg-info text-void hover:bg-info/80'}
                             `}
                         >
-                            {isConverting ? (
+                            {isExporting ? (
                                 <span className="flex items-center justify-center gap-2">
                                     <span className="w-3 h-3 border-2 border-muted border-t-transparent rounded-full animate-spin" />
-                                    Converting...
+                                    Exporting...
                                 </span>
                             ) : (
                                 `Export .${format.toUpperCase()}`
