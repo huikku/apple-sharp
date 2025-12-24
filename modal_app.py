@@ -389,6 +389,10 @@ def fastapi_app():
         import asyncio
         
         file_path = Path("/outputs/splats") / job_id / filename
+        splat_dir = Path("/outputs/splats") / job_id
+        
+        print(f"[Download] Request: job_id={job_id}, filename={filename}")
+        print(f"[Download] Looking in: {splat_dir}")
         
         # Retry with volume reloads to handle sync timing
         max_retries = 5
@@ -396,7 +400,15 @@ def fastapi_app():
             # Reload volume to get latest files
             outputs_volume.reload()
             
+            # Log what exists on each attempt
+            if splat_dir.exists():
+                existing = [f.name for f in splat_dir.iterdir()]
+                print(f"[Download] Attempt {attempt+1}/{max_retries}: dir exists, files: {existing}")
+            else:
+                print(f"[Download] Attempt {attempt+1}/{max_retries}: dir DOES NOT EXIST")
+            
             if file_path.exists():
+                print(f"[Download] Found exact match: {file_path}")
                 return FileResponse(
                     path=str(file_path),
                     filename=filename,
@@ -404,7 +416,6 @@ def fastapi_app():
                 )
             
             # Fallback: try to find ANY PLY file in the job directory
-            splat_dir = Path("/outputs/splats") / job_id
             if splat_dir.exists():
                 ply_files = list(splat_dir.glob("*.ply"))
                 if ply_files:
