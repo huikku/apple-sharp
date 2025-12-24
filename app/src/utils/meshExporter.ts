@@ -62,9 +62,9 @@ export function exportToPLY(geometry: THREE.BufferGeometry, filename: string = '
     const hasColors = !!colors;
     const vertexCount = positions.count;
 
-    // PLY header
+    // PLY header (still ASCII)
     let header = 'ply\n';
-    header += 'format ascii 1.0\n';
+    header += 'format binary_little_endian 1.0\n';
     header += 'comment Exported from Sharp 3D Viewer\n';
     header += `element vertex ${vertexCount}\n`;
     header += 'property float x\n';
@@ -77,26 +77,55 @@ export function exportToPLY(geometry: THREE.BufferGeometry, filename: string = '
     }
     header += 'end_header\n';
 
-    // Vertex data
-    const lines: string[] = [header];
-    for (let i = 0; i < vertexCount; i++) {
-        const x = positions.getX(i);
-        const y = positions.getY(i);
-        const z = positions.getZ(i);
+    const headerEncoder = new TextEncoder();
+    const headerBuffer = headerEncoder.encode(header);
 
-        let line = `${x.toFixed(6)} ${y.toFixed(6)} ${z.toFixed(6)}`;
+    // Vertex size: 3 floats (12 bytes) + 3 uchars (3 bytes) if colors = 15 bytes total
+    const vertexSize = 12 + (hasColors ? 3 : 0);
+    const totalSize = headerBuffer.length + (vertexCount * vertexSize);
+    const buffer = new ArrayBuffer(totalSize);
+    const view = new DataView(buffer);
+
+    // Write header
+    new Uint8Array(buffer, 0, headerBuffer.length).set(headerBuffer);
+
+    // Write vertex data
+    let offset = headerBuffer.length;
+    for (let i = 0; i < vertexCount; i++) {
+        // Position
+        let x = positions.getX(i);
+        let y = positions.getY(i);
+        let z = positions.getZ(i);
+
+        // Sanity check for NaN
+        if (!isFinite(x)) x = 0;
+        if (!isFinite(y)) y = 0;
+        if (!isFinite(z)) z = 0;
+
+        view.setFloat32(offset, x, true);
+        view.setFloat32(offset + 4, y, true);
+        view.setFloat32(offset + 8, z, true);
+        offset += 12;
 
         if (hasColors) {
-            const r = Math.round(colors.getX(i) * 255);
-            const g = Math.round(colors.getY(i) * 255);
-            const b = Math.round(colors.getZ(i) * 255);
-            line += ` ${r} ${g} ${b}`;
-        }
+            let r = colors.getX(i);
+            let g = colors.getY(i);
+            let b = colors.getZ(i);
 
-        lines.push(line);
+            // Sanity check for NaN/range
+            if (!isFinite(r)) r = 0.5;
+            if (!isFinite(g)) g = 0.5;
+            if (!isFinite(b)) b = 0.5;
+
+            view.setUint8(offset, Math.max(0, Math.min(255, Math.round(r * 255))));
+            view.setUint8(offset + 1, Math.max(0, Math.min(255, Math.round(g * 255))));
+            view.setUint8(offset + 2, Math.max(0, Math.min(255, Math.round(b * 255))));
+            offset += 3;
+        }
     }
 
-    downloadBlob(lines.join('\n'), filename, 'application/octet-stream');
+    const blob = new Blob([buffer], { type: 'application/octet-stream' });
+    downloadBlobObj(blob, filename);
 }
 
 // Export to GLB format using Three.js GLTFExporter

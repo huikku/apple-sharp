@@ -623,10 +623,8 @@ def fastapi_app():
             
             # Save mesh
             print(f"[Mesh] Saving to {output_path}")
-            if request.output_format == "glb":
-                o3d.io.write_triangle_mesh(output_path, mesh, write_vertex_colors=True)
-            else:
-                o3d.io.write_triangle_mesh(output_path, mesh)
+            # Explicitly enable vertex colors for all formats (OBJ, GLB, PLY)
+            o3d.io.write_triangle_mesh(output_path, mesh, write_vertex_colors=True)
             
             outputs_volume.commit()
             

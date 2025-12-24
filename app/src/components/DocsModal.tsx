@@ -223,6 +223,29 @@ function MeshingTab() {
                     Point toward +Z → Set FOV 60° → Use "Project from View" UV mapping
                 </div>
             </section>
+
+            <section className="mt-8 border-t border-metal pt-6">
+                <h3 className="font-display text-lg mb-3 text-critical">Blender Tips: Viewing Colors</h3>
+                <p className="leading-relaxed mb-3">
+                    If your imported model looks black in Blender, follow these steps:
+                </p>
+                <div className="space-y-3">
+                    <div className="bg-plate rounded-md p-3">
+                        <div className="font-medium text-xs mb-1">1. Viewport Shading</div>
+                        <p className="text-xs text-muted">
+                            In the 3D Viewport, click the dropdown next to the shading spheres and set
+                            <strong> Color</strong> to <strong>Attribute</strong>.
+                        </p>
+                    </div>
+                    <div className="bg-plate rounded-md p-3">
+                        <div className="font-medium text-xs mb-1">2. Point Cloud Rendering</div>
+                        <p className="text-xs text-muted">
+                            For raw PLY files, Blender 4.0+ supports <strong>Point Cloud</strong> objects.
+                            Use a <strong>Color Attribute</strong> node in your shader to access the "color" layer.
+                        </p>
+                    </div>
+                </div>
+            </section>
         </div>
     );
 }
