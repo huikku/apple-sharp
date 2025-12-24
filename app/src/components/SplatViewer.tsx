@@ -211,7 +211,7 @@ export function SplatViewer({
             <div className="flex-1 bg-void min-h-0">
                 {splatUrl ? (
                     <Canvas
-                        camera={{ position: [0, 0, 2], fov: 60 }}
+                        camera={{ position: [0, 0, 500], fov: 60, near: 0.1, far: 100000 }}
                         gl={{ antialias: true }}
                     >
                         <color attach="background" args={['#0A0C0E']} />
@@ -243,8 +243,8 @@ export function SplatViewer({
                         <OrbitControls
                             enableDamping
                             dampingFactor={0.05}
-                            minDistance={0.5}
-                            maxDistance={10}
+                            minDistance={0.1}
+                            maxDistance={10000}
                         />
                     </Canvas>
                 ) : (
