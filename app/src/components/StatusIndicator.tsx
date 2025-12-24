@@ -61,6 +61,13 @@ export function StatusIndicator({ status, processingTime, error, currentJob }: S
                 </div>
             )}
 
+            {/* Status detail for processing (GPU status, inference status, etc) */}
+            {status === 'processing' && currentJob?.statusDetail && (
+                <span className="text-xs text-info italic">
+                    {currentJob.statusDetail}
+                </span>
+            )}
+
             {processingTime !== undefined && status === 'complete' && (
                 <span className="font-mono text-xs text-muted">
                     {(processingTime / 1000).toFixed(2)}s

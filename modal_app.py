@@ -83,10 +83,11 @@ def run_sharp_inference(job_id: str, image_path: str):
     start_time = time.time()
     
     try:
-        # Update status to processing
+        # Update status to processing with stage info
         job_dict[job_id] = {
             "jobId": job_id,
             "status": "processing",
+            "statusDetail": "GPU container starting...",
             "queuePosition": 0,
             "estimatedWaitSeconds": 0,
         }
@@ -94,6 +95,15 @@ def run_sharp_inference(job_id: str, image_path: str):
         # Create output directory
         output_dir = f"/outputs/splats/{job_id}"
         Path(output_dir).mkdir(parents=True, exist_ok=True)
+        
+        # Update status: running inference
+        job_dict[job_id] = {
+            "jobId": job_id,
+            "status": "processing",
+            "statusDetail": "Running Sharp inference...",
+            "queuePosition": 0,
+            "estimatedWaitSeconds": 0,
+        }
         
         # Run Sharp CLI
         cmd = [
@@ -137,11 +147,16 @@ def run_sharp_inference(job_id: str, image_path: str):
         # Sync volume to persist output
         outputs_volume.commit()
         
+        print(f"[Sharp] Job {job_id} complete: {ply_file.name}, {elapsed_ms}ms")
+        
     except Exception as e:
+        error_msg = str(e)
+        print(f"[Sharp] Job {job_id} failed: {error_msg}")
         job_dict[job_id] = {
             "jobId": job_id,
             "status": "error",
-            "error": str(e),
+            "error": error_msg,
+            "statusDetail": "Inference failed",
             "queuePosition": 0,
             "estimatedWaitSeconds": 0,
         }
@@ -188,6 +203,7 @@ def fastapi_app():
     class SplatJob(BaseModel):
         jobId: str
         status: str
+        statusDetail: str | None = None
         splatUrl: str | None = None
         splatPath: str | None = None
         processingTimeMs: int | None = None

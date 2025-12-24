@@ -12,6 +12,7 @@ export interface SplatJob {
     jobId: string;
     imageId: string;
     status: 'queued' | 'processing' | 'complete' | 'error';
+    statusDetail?: string;  // GPU status, inference status, etc.
     progress?: number;
     splatUrl?: string;
     splatPath?: string;  // Absolute file path for mesh conversion
