@@ -61,8 +61,7 @@ outputs_volume = modal.Volume.from_name("sharp-outputs", create_if_missing=True)
 # Persistent job state dict (survives across requests)
 job_dict = modal.Dict.from_name("sharp-jobs", create_if_missing=True)
 
-
-@app.function(
+@app.cls(
     gpu="T4",
     volumes={
         "/model-cache": model_cache,
@@ -71,96 +70,127 @@ job_dict = modal.Dict.from_name("sharp-jobs", create_if_missing=True)
     timeout=600,
     memory=8192,
 )
-def run_sharp_inference(job_id: str, image_path: str):
-    """
-    Run Sharp inference in the background.
-    This function is spawned asynchronously and updates job state in Dict.
-    """
-    import time
-    import subprocess
-    from pathlib import Path
+class SharpInference:
+    """Sharp inference class with model preloading."""
     
-    start_time = time.time()
+    @modal.enter()
+    def load_model(self):
+        """Preload Sharp model on container startup (runs once per container)."""
+        import torch
+        print("[Sharp] Container starting, preloading model...")
+        
+        # Import Sharp and trigger model download/loading
+        try:
+            from sharp.predictor import SharpPredictor
+            self.predictor = SharpPredictor(device="cuda")
+            print("[Sharp] Model preloaded successfully!")
+        except Exception as e:
+            print(f"[Sharp] Model preload failed (will use CLI fallback): {e}")
+            self.predictor = None
     
-    try:
-        # Update status to processing with stage info
-        job_dict[job_id] = {
-            "jobId": job_id,
-            "status": "processing",
-            "statusDetail": "GPU container starting...",
-            "queuePosition": 0,
-            "estimatedWaitSeconds": 0,
-        }
+    @modal.method()
+    def run_inference(self, job_id: str, image_path: str):
+        """Run Sharp inference on an image."""
+        import time
+        import subprocess
+        from pathlib import Path
         
-        # Create output directory
-        output_dir = f"/outputs/splats/{job_id}"
-        Path(output_dir).mkdir(parents=True, exist_ok=True)
+        start_time = time.time()
         
-        # Update status: running inference
-        job_dict[job_id] = {
-            "jobId": job_id,
-            "status": "processing",
-            "statusDetail": "Running Sharp inference...",
-            "queuePosition": 0,
-            "estimatedWaitSeconds": 0,
-        }
-        
-        # Run Sharp CLI
-        cmd = [
-            "sharp", "predict",
-            "-i", image_path,
-            "-o", output_dir,
-        ]
-        
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=600,
-        )
-        
-        if result.returncode != 0:
-            raise Exception(f"Sharp failed: {result.stderr}")
-        
-        # Find output PLY file
-        ply_file = Path(output_dir) / "splat.ply"
-        if not ply_file.exists():
-            ply_files = list(Path(output_dir).glob("*.ply"))
-            if ply_files:
-                ply_file = ply_files[0]
-            else:
-                raise Exception(f"No PLY output found in {output_dir}")
-        
-        elapsed_ms = int((time.time() - start_time) * 1000)
-        
-        # Update to complete
-        job_dict[job_id] = {
-            "jobId": job_id,
-            "status": "complete",
-            "splatUrl": f"/api/download/{job_id}/{ply_file.name}",
-            "splatPath": str(ply_file),
-            "processingTimeMs": elapsed_ms,
-            "queuePosition": 0,
-            "estimatedWaitSeconds": 0,
-        }
-        
-        # Sync volume to persist output
-        outputs_volume.commit()
-        
-        print(f"[Sharp] Job {job_id} complete: {ply_file.name}, {elapsed_ms}ms")
-        
-    except Exception as e:
-        error_msg = str(e)
-        print(f"[Sharp] Job {job_id} failed: {error_msg}")
-        job_dict[job_id] = {
-            "jobId": job_id,
-            "status": "error",
-            "error": error_msg,
-            "statusDetail": "Inference failed",
-            "queuePosition": 0,
-            "estimatedWaitSeconds": 0,
-        }
+        try:
+            # Update status to processing
+            job_dict[job_id] = {
+                "jobId": job_id,
+                "status": "processing",
+                "statusDetail": "Running Sharp inference...",
+                "queuePosition": 0,
+                "estimatedWaitSeconds": 0,
+            }
+            
+            # Create output directory
+            output_dir = f"/outputs/splats/{job_id}"
+            Path(output_dir).mkdir(parents=True, exist_ok=True)
+            
+            # Try Python API first, fall back to CLI
+            if self.predictor is not None:
+                try:
+                    job_dict[job_id]["statusDetail"] = "Processing with preloaded model..."
+                    from PIL import Image
+                    import numpy as np
+                    
+                    img = Image.open(image_path)
+                    output = self.predictor.predict(img)
+                    
+                    # Save PLY
+                    ply_path = Path(output_dir) / "splat.ply"
+                    output.save_ply(str(ply_path))
+                    ply_file = ply_path
+                except Exception as e:
+                    print(f"[Sharp] Python API failed, falling back to CLI: {e}")
+                    self.predictor = None  # Don't retry Python API
+                    
+            if self.predictor is None:
+                # Fallback to CLI
+                job_dict[job_id]["statusDetail"] = "Running Sharp CLI..."
+                cmd = [
+                    "sharp", "predict",
+                    "-i", image_path,
+                    "-o", output_dir,
+                ]
+                
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=600,
+                )
+                
+                if result.returncode != 0:
+                    raise Exception(f"Sharp CLI failed: {result.stderr}")
+                
+                # Find output PLY file
+                ply_file = Path(output_dir) / "splat.ply"
+                if not ply_file.exists():
+                    ply_files = list(Path(output_dir).glob("*.ply"))
+                    if ply_files:
+                        ply_file = ply_files[0]
+                    else:
+                        raise Exception(f"No PLY output found in {output_dir}")
+            
+            elapsed_ms = int((time.time() - start_time) * 1000)
+            
+            # Update to complete
+            job_dict[job_id] = {
+                "jobId": job_id,
+                "status": "complete",
+                "statusDetail": "Complete",
+                "splatUrl": f"/api/download/{job_id}/{ply_file.name}",
+                "splatPath": str(ply_file),
+                "processingTimeMs": elapsed_ms,
+                "queuePosition": 0,
+                "estimatedWaitSeconds": 0,
+            }
+            
+            # Sync volume to persist output
+            outputs_volume.commit()
+            
+            print(f"[Sharp] Job {job_id} complete: {ply_file.name}, {elapsed_ms}ms")
+            
+        except Exception as e:
+            error_msg = str(e)
+            print(f"[Sharp] Job {job_id} failed: {error_msg}")
+            job_dict[job_id] = {
+                "jobId": job_id,
+                "status": "error",
+                "error": error_msg,
+                "statusDetail": "Inference failed",
+                "queuePosition": 0,
+                "estimatedWaitSeconds": 0,
+            }
 
+
+# Create a reference to the class for spawning
+sharp_inference = SharpInference()
 
 @app.function(
     volumes={
@@ -327,7 +357,7 @@ def fastapi_app():
         }
         
         # Spawn Sharp inference in background (non-blocking!)
-        run_sharp_inference.spawn(job_id, image_path)
+        sharp_inference.run_inference.spawn(job_id, image_path)
         
         # Return immediately with queued status
         return SplatJob(

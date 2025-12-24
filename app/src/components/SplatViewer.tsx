@@ -1,5 +1,5 @@
 import { useRef, useMemo, Suspense, useState, useEffect } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Grid } from '@react-three/drei';
 import * as THREE from 'three';
 import { loadGaussianSplatPLY, createGaussianSplatGeometry } from '../utils/gaussianSplatLoader';
@@ -128,7 +128,12 @@ function PointCloudMesh({ url, pointSize = 0.005, showColors = true, pointShape 
         );
     }
 
-    return <points ref={meshRef} geometry={geometry} material={material} />;
+    return (
+        <>
+            <CameraFitter geometry={geometry} />
+            <points ref={meshRef} geometry={geometry} material={material} />
+        </>
+    );
 }
 
 function RotatingGroup({ autoRotate, children }: { autoRotate: boolean; children: React.ReactNode }) {
@@ -150,6 +155,34 @@ function LoadingFallback() {
             <meshBasicMaterial color="#68A9EC" wireframe />
         </mesh>
     );
+}
+
+// Auto-fit camera to geometry bounding box
+function CameraFitter({ geometry }: { geometry: THREE.BufferGeometry | null }) {
+    const { camera } = useThree();
+
+    useEffect(() => {
+        if (!geometry) return;
+
+        geometry.computeBoundingBox();
+        const box = geometry.boundingBox;
+        if (!box) return;
+
+        const size = box.getSize(new THREE.Vector3());
+        const center = box.getCenter(new THREE.Vector3());
+
+        // Calculate distance needed to fit the object
+        const maxDim = Math.max(size.x, size.y, size.z);
+        const distance = maxDim * 2;  // Double the max dimension for good view
+
+        camera.position.set(center.x, center.y, center.z + distance);
+        camera.lookAt(center);
+        camera.updateProjectionMatrix();
+
+        console.log('Camera fitted to bounding box:', { center, size, distance });
+    }, [geometry, camera]);
+
+    return null;
 }
 
 export function SplatViewer({
