@@ -103,6 +103,8 @@ npm run dev
 
 Visit http://localhost:5173
 
+> **📖 For detailed local setup** including troubleshooting, CUDA verification, and directory structure, see [Local Deployment Guide](docs/LOCAL_DEPLOYMENT.md).
+
 ---
 
 ## Deployment (GitHub Pages + Modal)
