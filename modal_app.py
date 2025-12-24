@@ -98,6 +98,13 @@ class SharpInference:
         start_time = time.time()
         
         try:
+            # CRITICAL: Reload volume to see files uploaded by web function
+            outputs_volume.reload()
+            
+            # Verify input file exists
+            if not Path(image_path).exists():
+                raise Exception(f"Input file not found: {image_path}")
+            
             # Update status to processing
             job_dict[job_id] = {
                 "jobId": job_id,
