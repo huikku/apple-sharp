@@ -205,6 +205,7 @@ sharp_inference = SharpInference()
     },
     timeout=120,
     memory=2048,
+    min_containers=1,  # Always keep 1 container running (~$5-10/month)
 )
 @modal.concurrent(max_inputs=100)  # Handle many status checks
 @modal.asgi_app()
