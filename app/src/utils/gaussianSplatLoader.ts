@@ -18,7 +18,10 @@ interface PropertyInfo {
  * Parses the f_dc_0, f_dc_1, f_dc_2 spherical harmonics and converts to RGB.
  * Includes retry logic for volume sync timing issues.
  */
-export async function loadGaussianSplatPLY(url: string): Promise<GaussianSplatData> {
+export async function loadGaussianSplatPLY(
+    url: string,
+    onLog?: (message: string) => void
+): Promise<GaussianSplatData> {
     // Retry logic for volume sync timing issues on Modal
     const maxRetries = 5;
     const baseDelay = 2000; // 2 seconds
@@ -27,12 +30,18 @@ export async function loadGaussianSplatPLY(url: string): Promise<GaussianSplatDa
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
         try {
+            const logMsg = attempt === 0
+                ? 'Fetching 3D model...'
+                : `Retrying download (attempt ${attempt + 1}/${maxRetries})...`;
+            onLog?.(logMsg);
             console.log(`[PLY Loader] Loading: ${url} (attempt ${attempt + 1}/${maxRetries})`);
             const response = await fetch(url);
 
             // If 404 or 5xx, retry after a delay (volume may not be synced yet)
             if (response.status === 404 || response.status >= 500) {
                 const delay = baseDelay * Math.pow(2, attempt); // 2s, 4s, 8s, 16s, 32s
+                const retryMsg = `File not ready, waiting ${delay / 1000}s...`;
+                onLog?.(retryMsg);
                 console.log(`[PLY Loader] Got ${response.status}, retrying in ${delay / 1000}s...`);
                 await new Promise(resolve => setTimeout(resolve, delay));
                 lastError = new Error(`HTTP ${response.status}: File not found or server error`);

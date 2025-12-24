@@ -193,6 +193,9 @@ function App() {
               setError(`Failed to load 3D model: ${error}`);
               setStatus('error');
             }}
+            onLog={(message) => {
+              logInfo('VIEWER', message);
+            }}
           />
         </div>
 

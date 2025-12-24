@@ -12,6 +12,7 @@ interface SplatViewerProps {
     showColors?: boolean;
     pointShape?: 'square' | 'circle';
     onError?: (error: string) => void;
+    onLog?: (message: string) => void;
 }
 
 interface PointCloudMeshProps {
@@ -20,9 +21,10 @@ interface PointCloudMeshProps {
     showColors?: boolean;
     pointShape?: 'square' | 'circle';
     onError?: (error: string) => void;
+    onLog?: (message: string) => void;
 }
 
-function PointCloudMesh({ url, pointSize = 0.005, showColors = true, pointShape = 'circle', onError }: PointCloudMeshProps) {
+function PointCloudMesh({ url, pointSize = 0.005, showColors = true, pointShape = 'circle', onError, onLog }: PointCloudMeshProps) {
     const [geometry, setGeometry] = useState<THREE.BufferGeometry | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -36,11 +38,15 @@ function PointCloudMesh({ url, pointSize = 0.005, showColors = true, pointShape 
                 setLoading(true);
                 setError(null);
 
+                onLog?.('Loading 3D model...');
                 console.log('Loading Gaussian splat from:', url);
-                const data = await loadGaussianSplatPLY(url);
+                const data = await loadGaussianSplatPLY(url, (msg) => {
+                    onLog?.(msg);
+                });
 
                 if (cancelled) return;
 
+                onLog?.(`Loaded ${data.count.toLocaleString()} points`);
                 console.log(`Loaded ${data.count} Gaussians with colors`);
                 const geo = createGaussianSplatGeometry(data);
                 setGeometry(geo);
@@ -153,7 +159,8 @@ export function SplatViewer({
     pointSize = 0.005,
     showColors = true,
     pointShape = 'circle',
-    onError
+    onError,
+    onLog
 }: SplatViewerProps) {
     return (
         <div className="bg-card rounded-md border border-metal overflow-hidden h-full flex flex-col">
@@ -179,7 +186,7 @@ export function SplatViewer({
 
                         <Suspense fallback={<LoadingFallback />}>
                             <RotatingGroup autoRotate={autoRotate}>
-                                <PointCloudMesh url={splatUrl} pointSize={pointSize} showColors={showColors} pointShape={pointShape} onError={onError} />
+                                <PointCloudMesh url={splatUrl} pointSize={pointSize} showColors={showColors} pointShape={pointShape} onError={onError} onLog={onLog} />
                             </RotatingGroup>
                         </Suspense>
 
