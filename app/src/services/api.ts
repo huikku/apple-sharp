@@ -59,7 +59,7 @@ function getErrorMessage(status: number, context: string): string {
         case 500:
             return 'Server error occurred. Please try again in a moment.';
         case 413:
-            return 'Image file is too large. Please use an image under 10MB.';
+            return 'Image file is too large. Please use an image under 50MB.';
         case 404:
             return context === 'generate'
                 ? 'Image not found. Please upload again.'

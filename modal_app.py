@@ -338,7 +338,7 @@ def fastapi_app():
     @web_app.post("/api/upload")
     async def upload_image(file: UploadFile = File(...)):
         # SECURITY: File size limit (20MB)
-        MAX_FILE_SIZE = 20 * 1024 * 1024  # 20MB
+        MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
         
         content = await file.read()
         if len(content) > MAX_FILE_SIZE:
