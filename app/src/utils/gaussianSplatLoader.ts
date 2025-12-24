@@ -16,11 +16,62 @@ interface PropertyInfo {
 /**
  * Custom loader for 3D Gaussian Splat PLY files.
  * Parses the f_dc_0, f_dc_1, f_dc_2 spherical harmonics and converts to RGB.
+ * Includes retry logic for volume sync timing issues.
  */
 export async function loadGaussianSplatPLY(url: string): Promise<GaussianSplatData> {
-    const response = await fetch(url);
-    const buffer = await response.arrayBuffer();
+    // Retry logic for volume sync timing issues on Modal
+    const maxRetries = 5;
+    const baseDelay = 2000; // 2 seconds
 
+    let lastError: Error = new Error('Failed to load PLY file');
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+        try {
+            console.log(`[PLY Loader] Loading: ${url} (attempt ${attempt + 1}/${maxRetries})`);
+            const response = await fetch(url);
+
+            // If 404 or 5xx, retry after a delay (volume may not be synced yet)
+            if (response.status === 404 || response.status >= 500) {
+                const delay = baseDelay * Math.pow(2, attempt); // 2s, 4s, 8s, 16s, 32s
+                console.log(`[PLY Loader] Got ${response.status}, retrying in ${delay / 1000}s...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+                lastError = new Error(`HTTP ${response.status}: File not found or server error`);
+                continue;
+            }
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const buffer = await response.arrayBuffer();
+
+            // Validate buffer has content
+            if (buffer.byteLength < 100) {
+                throw new Error('PLY file too small, may be empty or incomplete');
+            }
+
+            // Parse and return the data
+            return parsePLYBuffer(buffer);
+
+        } catch (err) {
+            lastError = err instanceof Error ? err : new Error(String(err));
+
+            // Only retry on network errors
+            if (attempt < maxRetries - 1) {
+                const delay = baseDelay * Math.pow(2, attempt);
+                console.log(`[PLY Loader] Error: ${lastError.message}, retrying in ${delay / 1000}s...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+        }
+    }
+
+    throw lastError;
+}
+
+/**
+ * Parse PLY buffer into GaussianSplatData
+ */
+function parsePLYBuffer(buffer: ArrayBuffer): GaussianSplatData {
     // Parse PLY header
     const textDecoder = new TextDecoder();
     const headerView = new Uint8Array(buffer, 0, Math.min(8192, buffer.byteLength));
