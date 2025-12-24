@@ -187,6 +187,52 @@ export function OutputsPanel({ splatPath, splatUrl, jobId, isComplete, onLog }: 
                             )}
                         </button>
                     </div>
+
+                    {/* Camera Parameters */}
+                    <div className="pt-3 border-t border-metal">
+                        <p className="text-xs text-muted uppercase tracking-wider mb-2">Camera Params</p>
+                        <p className="text-xs text-muted mb-2 opacity-70">
+                            For projection mapping in 3D software
+                        </p>
+                        <div className="flex gap-1">
+                            <button
+                                onClick={async () => {
+                                    const params = {
+                                        position: [0, 0, 0],
+                                        look_at: [0, 0, 1],
+                                        up: [0, -1, 0],
+                                        fov: 60,
+                                        notes: "OpenCV: X-right, Y-down, Z-forward"
+                                    };
+                                    await navigator.clipboard.writeText(JSON.stringify(params, null, 2));
+                                    onLog?.('Camera params copied to clipboard', 'success');
+                                }}
+                                className="flex-1 py-1.5 px-2 rounded text-xs font-medium transition-colors border
+                                    bg-plate text-muted border-metal hover:border-warning hover:text-warning"
+                                title="Copy camera parameters"
+                            >
+                                📋 Copy
+                            </button>
+                            <a
+                                href={`${import.meta.env.VITE_API_URL || '/api'}/camera/params.json`}
+                                download="camera_params.json"
+                                className="flex-1 py-1.5 px-2 rounded text-xs font-medium transition-colors border text-center
+                                    bg-plate text-muted border-metal hover:border-info hover:text-info"
+                                title="Download camera JSON"
+                            >
+                                📄 JSON
+                            </a>
+                            <a
+                                href={`${import.meta.env.VITE_API_URL || '/api'}/camera/frustum.obj`}
+                                download="camera_frustum.obj"
+                                className="flex-1 py-1.5 px-2 rounded text-xs font-medium transition-colors border text-center
+                                    bg-plate text-muted border-metal hover:border-success hover:text-success"
+                                title="Download camera frustum mesh"
+                            >
+                                🎯 OBJ
+                            </a>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

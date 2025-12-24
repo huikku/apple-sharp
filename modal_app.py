@@ -629,4 +629,76 @@ def fastapi_app():
             media_type=content_type
         )
     
+    # ========== Camera Parameters ==========
+    
+    # Sharp uses OpenCV convention: X-right, Y-down, Z-forward
+    # Camera is at origin looking into scene (toward +Z)
+    CAMERA_PARAMS = {
+        "position": [0.0, 0.0, 0.0],
+        "rotation_euler": [0.0, 0.0, 0.0],  # Looking down +Z
+        "rotation_quaternion": [1.0, 0.0, 0.0, 0.0],  # Identity
+        "look_at": [0.0, 0.0, 1.0],  # Looking toward +Z
+        "up_vector": [0.0, -1.0, 0.0],  # Y is down in OpenCV
+        "fov_degrees": 60.0,  # Assumed FOV
+        "coordinate_system": "opencv",  # X-right, Y-down, Z-forward
+        "notes": "Sharp reconstructs scene from camera at origin. Place camera at (0,0,0) looking toward +Z for projection mapping."
+    }
+    
+    @web_app.get("/api/camera/params")
+    async def get_camera_params():
+        """Get the assumed camera parameters for Sharp reconstructions."""
+        return CAMERA_PARAMS
+    
+    @web_app.get("/api/camera/frustum.obj")
+    async def get_camera_frustum():
+        """Download a camera frustum mesh (cone) for visualization in 3D software."""
+        import io
+        
+        # Create a simple camera frustum/cone OBJ
+        # Frustum points from origin (camera) toward +Z
+        frustum_obj = """# Camera Frustum for Sharp Scene
+# Place this at origin to show camera position
+# Camera looks down +Z axis
+
+# Vertices
+v 0.0 0.0 0.0
+v -0.3 -0.2 0.5
+v 0.3 -0.2 0.5
+v 0.3 0.2 0.5
+v -0.3 0.2 0.5
+
+# Faces (cone from origin to frustum plane)
+f 1 2 3
+f 1 3 4
+f 1 4 5
+f 1 5 2
+f 2 4 3
+f 2 5 4
+"""
+        
+        from starlette.responses import Response
+        return Response(
+            content=frustum_obj,
+            media_type="text/plain",
+            headers={
+                "Content-Disposition": "attachment; filename=camera_frustum.obj",
+                "Access-Control-Allow-Origin": "*",
+            }
+        )
+    
+    @web_app.get("/api/camera/params.json")
+    async def download_camera_json():
+        """Download camera parameters as a JSON file."""
+        import json
+        from starlette.responses import Response
+        
+        return Response(
+            content=json.dumps(CAMERA_PARAMS, indent=2),
+            media_type="application/json",
+            headers={
+                "Content-Disposition": "attachment; filename=camera_params.json",
+                "Access-Control-Allow-Origin": "*",
+            }
+        )
+    
     return web_app
