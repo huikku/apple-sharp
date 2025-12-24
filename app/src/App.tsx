@@ -138,6 +138,11 @@ function App() {
         backendOnline={backendOnline}
         onDocsClick={() => setIsDocsOpen(true)}
         currentJob={currentJob}
+        onLog={(msg, type) => {
+          if (type === 'error') logError('SERVER', msg);
+          else if (type === 'success') logSuccess('SERVER', msg);
+          else logInfo('SERVER', msg);
+        }}
       />
 
 

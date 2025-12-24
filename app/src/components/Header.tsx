@@ -11,18 +11,25 @@ interface HeaderProps {
     onDocsClick: () => void;
     currentJob?: SplatJob | null;
     onServerWake?: () => void;
+    onLog?: (message: string, type: 'info' | 'success' | 'error') => void;
 }
 
-export function Header({ status, processingTime, error, backendOnline, onDocsClick, currentJob, onServerWake }: HeaderProps) {
+export function Header({ status, processingTime, error, backendOnline, onDocsClick, currentJob, onServerWake, onLog }: HeaderProps) {
     const [isWaking, setIsWaking] = useState(false);
 
     const handleWakeUp = async () => {
         setIsWaking(true);
+        onLog?.('Waking up server... This can take 15-60 seconds on first start.', 'info');
         try {
-            await checkHealth();
-            onServerWake?.();
+            const success = await checkHealth();
+            if (success) {
+                onLog?.('Server is now online!', 'success');
+                onServerWake?.();
+            } else {
+                onLog?.('Server still starting... Try again in a moment.', 'info');
+            }
         } catch {
-            // Will retry on next check
+            onLog?.('Could not reach server. It may still be starting.', 'info');
         }
         setIsWaking(false);
     };
