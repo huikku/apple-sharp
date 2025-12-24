@@ -92,8 +92,8 @@ export function ControlPanel({
                         <input
                             type="range"
                             min="0.001"
-                            max="0.03"
-                            step="0.001"
+                            max="1.0"
+                            step="0.005"
                             value={pointSize}
                             onChange={(e) => onPointSizeChange(parseFloat(e.target.value))}
                             className="w-full h-1 bg-metal rounded-full appearance-none cursor-pointer
