@@ -23,3 +23,7 @@ dist/
 
 # OS
 .DS_Store
+
+# Internal docs
+docs/codebase-evaluation.md
+docs/style-guide.md
