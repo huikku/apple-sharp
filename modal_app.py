@@ -46,8 +46,9 @@ image = (
         "cd /opt/ml-sharp && pip install -e .",
     )
     .env({
-        "HF_HOME": "/model-cache",
-        "TRANSFORMERS_CACHE": "/model-cache",
+        "HF_HOME": "/model-cache/huggingface",
+        "TORCH_HOME": "/model-cache/torch",
+        "PYTHONPATH": "/opt/ml-sharp/src",
     })
 )
 
@@ -60,6 +61,7 @@ outputs_volume = modal.Volume.from_name("sharp-outputs", create_if_missing=True)
 
 # Persistent job state dict (survives across requests)
 job_dict = modal.Dict.from_name("sharp-jobs", create_if_missing=True)
+stats_dict = modal.Dict.from_name("sharp-stats", create_if_missing=True)
 
 @app.cls(
     gpu="T4",
@@ -79,13 +81,27 @@ class SharpInference:
         import torch
         print("[Sharp] Container starting, preloading model...")
         
-        # Import Sharp and trigger model download/loading
         try:
-            from sharp.predictor import SharpPredictor
-            self.predictor = SharpPredictor(device="cuda")
-            print("[Sharp] Model preloaded successfully!")
+            # Import Sharp and trigger model download/loading
+            from sharp.models import PredictorParams, create_predictor
+            
+            DEFAULT_MODEL_URL = "https://ml-site.cdn-apple.com/models/sharp/sharp_2572gikvuh.pt"
+            
+            print(f"[Sharp] Loading weights from {DEFAULT_MODEL_URL}...")
+            # This will use TORCH_HOME cache automatically
+            state_dict = torch.hub.load_state_dict_from_url(DEFAULT_MODEL_URL, progress=True)
+            
+            print("[Sharp] Initializing model architectural components...")
+            self.predictor = create_predictor(PredictorParams())
+            self.predictor.load_state_dict(state_dict)
+            self.predictor.eval()
+            self.predictor.to("cuda")
+            
+            print("[Sharp] Model preloaded successfully on CUDA!")
         except Exception as e:
-            print(f"[Sharp] Model preload failed (will use CLI fallback): {e}")
+            import traceback
+            print(f"[Sharp] Model preload failed: {e}")
+            traceback.print_exc()
             self.predictor = None
     
     @modal.method()
@@ -118,51 +134,57 @@ class SharpInference:
             output_dir = f"/outputs/splats/{job_id}"
             Path(output_dir).mkdir(parents=True, exist_ok=True)
             
-            # Try Python API first, fall back to CLI
-            if self.predictor is not None:
-                try:
-                    job_dict[job_id]["statusDetail"] = "Processing with preloaded model..."
-                    from PIL import Image
-                    import numpy as np
-                    
-                    img = Image.open(image_path)
-                    output = self.predictor.predict(img)
-                    
-                    # Save PLY
-                    ply_path = Path(output_dir) / "splat.ply"
-                    output.save_ply(str(ply_path))
-                    ply_file = ply_path
-                except Exception as e:
-                    print(f"[Sharp] Python API failed, falling back to CLI: {e}")
-                    self.predictor = None  # Don't retry Python API
-                    
+            # CRITICAL: Always use Python API now for performance
             if self.predictor is None:
-                # Fallback to CLI
-                job_dict[job_id]["statusDetail"] = "Running Sharp CLI..."
-                cmd = [
-                    "sharp", "predict",
-                    "-i", image_path,
-                    "-o", output_dir,
-                ]
-                
-                result = subprocess.run(
-                    cmd,
-                    capture_output=True,
-                    text=True,
-                    timeout=600,
-                )
-                
-                if result.returncode != 0:
-                    raise Exception(f"Sharp CLI failed: {result.stderr}")
-                
-                # Find output PLY file
-                ply_file = Path(output_dir) / "splat.ply"
-                if not ply_file.exists():
-                    ply_files = list(Path(output_dir).glob("*.ply"))
-                    if ply_files:
-                        ply_file = ply_files[0]
-                    else:
-                        raise Exception(f"No PLY output found in {output_dir}")
+                raise Exception("Sharp model not preloaded. Check container logs.")
+
+            job_dict[job_id]["statusDetail"] = "Running in-memory inference..."
+            
+            import torch
+            import torch.nn.functional as F
+            from sharp.utils import io
+            from sharp.utils.gaussians import save_ply, unproject_gaussians
+            import numpy as np
+            
+            # 1. Preprocessing
+            internal_shape = (1536, 1536)
+            image, _, f_px = io.load_rgb(image_path)
+            height, width = image.shape[:2]
+            
+            device = torch.device("cuda")
+            image_pt = torch.from_numpy(image.copy()).float().to(device).permute(2, 0, 1) / 255.0
+            disparity_factor = torch.tensor([f_px / width]).float().to(device)
+            
+            image_resized_pt = F.interpolate(
+                image_pt[None],
+                size=(internal_shape[1], internal_shape[0]),
+                mode="bilinear",
+                align_corners=True,
+            )
+            
+            # 2. Inference
+            with torch.no_grad():
+                gaussians_ndc = self.predictor(image_resized_pt, disparity_factor)
+            
+            # 3. Postprocessing (Unprojection)
+            intrinsics = torch.tensor([
+                [f_px, 0, width / 2, 0],
+                [0, f_px, height / 2, 0],
+                [0, 0, 1, 0],
+                [0, 0, 0, 1],
+            ]).float().to(device)
+            
+            intrinsics_resized = intrinsics.clone()
+            intrinsics_resized[0] *= internal_shape[0] / width
+            intrinsics_resized[1] *= internal_shape[1] / height
+            
+            gaussians = unproject_gaussians(
+                gaussians_ndc, torch.eye(4).to(device), intrinsics_resized, internal_shape
+            )
+            
+            # 4. Save PLY (scale reduction now happens in save_ply itself)
+            ply_file = Path(output_dir) / "splat.ply"
+            save_ply(gaussians, f_px, (height, width), ply_file)
             
             elapsed_ms = int((time.time() - start_time) * 1000)
             
@@ -180,6 +202,22 @@ class SharpInference:
             
             # Sync volume to persist output
             outputs_volume.commit()
+            
+            # Record stat
+            try:
+                current_time = int(time.time())
+                # Stats are stored as a list of timestamps in the 'completions' key
+                completions = stats_dict.get("completions", [])
+                completions.append(current_time)
+                # Keep only last 10,000 to avoid bloat, but enough for yearly stats if needed
+                if len(completions) > 10000:
+                    completions = completions[-10000:]
+                stats_dict["completions"] = completions
+                
+                # Record total count separately for all-time
+                stats_dict["total_count"] = stats_dict.get("total_count", 0) + 1
+            except Exception as se:
+                print(f"[Stats] Failed to record completion: {se}")
             
             print(f"[Sharp] Job {job_id} complete: {ply_file.name}, {elapsed_ms}ms")
             
@@ -203,8 +241,8 @@ sharp_inference = SharpInference()
     volumes={
         "/outputs": outputs_volume,
     },
-    timeout=120,
-    memory=2048,
+    timeout=300,        # Increased to 5 mins for large reconstructions
+    memory=8192,       # Increased to 8GB for 1M+ point clouds
     min_containers=1,  # Always keep 1 container running (~$5-10/month)
 )
 @modal.concurrent(max_inputs=100)  # Handle many status checks
@@ -564,21 +602,25 @@ def fastapi_app():
             print(f"[Mesh] Converting {splat_path} using {request.method}")
             
             # Load PLY
+            print(f"[Mesh] Reading PLY data from {splat_path}...")
             ply_data = PlyData.read(splat_path)
             vertex = ply_data['vertex']
-            points = np.vstack([vertex['x'], vertex['y'], vertex['z']]).T
+            print(f"[Mesh] PLY properties: {vertex.data.dtype.names}")
             
-            print(f"[Mesh] Loaded {len(points)} points")
+            points = np.vstack([vertex['x'], vertex['y'], vertex['z']]).T
+            print(f"[Mesh] Successfully loaded {len(points)} points")
             
             # Get colors if available (try multiple formats)
             colors = None
             if 'red' in vertex.data.dtype.names:
+                print("[Mesh] Found direct RGB colors")
                 colors = np.vstack([
                     vertex['red'] / 255.0,
                     vertex['green'] / 255.0,
                     vertex['blue'] / 255.0
                 ]).T
             elif 'f_dc_0' in vertex.data.dtype.names:
+                print("[Mesh] Converting Spherical Harmonics to RGB...")
                 # Convert spherical harmonics to RGB
                 SH_C0 = 0.28209479177387814
                 colors = np.vstack([
@@ -586,6 +628,8 @@ def fastapi_app():
                     np.clip(vertex['f_dc_1'] * SH_C0 + 0.5, 0, 1),
                     np.clip(vertex['f_dc_2'] * SH_C0 + 0.5, 0, 1),
                 ]).T
+            else:
+                print("[Mesh] No colors found in PLY")
             
             # Create point cloud
             pcd = o3d.geometry.PointCloud()
@@ -745,5 +789,53 @@ f 2 5 4
                 "Access-Control-Allow-Origin": "*",
             }
         )
+    
+    # ========== Usage Stats & Costs ==========
+    
+    @web_app.get("/api/stats")
+    async def get_usage_stats():
+        import time
+        from datetime import datetime
+        
+        completions = stats_dict.get("completions", [])
+        total_count = stats_dict.get("total_count", 0)
+        
+        now = time.time()
+        hour_ago = now - 3600
+        day_ago = now - 86400
+        month_ago = now - 2592000 # 30 days
+        year_ago = now - 31536000 # 365 days
+        
+        return {
+            "allTime": total_count,
+            "thisYear": len([t for t in completions if t > year_ago]),
+            "thisMonth": len([t for t in completions if t > month_ago]),
+            "thisDay": len([t for t in completions if t > day_ago]),
+            "thisHour": len([t for t in completions if t > hour_ago]),
+        }
+
+    @web_app.get("/api/costs")
+    async def get_cost_stats():
+        """Estimated costs based on Modal T4 pricing and uptime."""
+        total_count = stats_dict.get("total_count", 0)
+        
+        # Modal T4 pricing ~ $0.59 / hour
+        # Avg splat time ~ 25 seconds
+        # Usage cost: $0.59 / 3600 * 25 = $0.004 per splat
+        usage_cost = total_count * 0.004
+        
+        # Fixed cost (min_containers=1)
+        # $0.59 * 24 * 30 = ~$425? Wait, Modal web functions are cheaper if idle?
+        # Actually, Modal says "0.1Ghz/sec" etc. 
+        # A warm container with min_containers=1 usually costs around $5-10/month 
+        # because it only bills for the active "web" overhead when not processing.
+        fixed_cost_estimate = 7.50 # Monthly base
+        
+        return {
+            "estimatedUsageCost": round(usage_cost, 2),
+            "monthlyFixedCost": fixed_cost_estimate,
+            "currency": "USD",
+            "note": "Estimates based on Modal GPU (T4) pricing."
+        }
     
     return web_app

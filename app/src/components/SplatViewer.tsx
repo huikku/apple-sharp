@@ -1,6 +1,7 @@
 import { useRef, useMemo, Suspense, useState, useEffect } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Grid } from '@react-three/drei';
+import { Box } from 'lucide-react';
 import * as THREE from 'three';
 import { loadGaussianSplatPLY, createGaussianSplatGeometry } from '../utils/gaussianSplatLoader';
 import { setExportGeometry } from '../utils/meshExporter';
@@ -254,7 +255,7 @@ export function SplatViewer({
                     <div className="w-full h-full flex items-center justify-center">
                         <div className="text-center">
                             <div className="w-16 h-16 mx-auto mb-4 rounded-full border-2 border-dashed border-metal flex items-center justify-center">
-                                <span className="text-2xl text-muted">◇</span>
+                                <Box size={24} className="text-muted" />
                             </div>
                             <p className="text-sm text-muted">
                                 GENERATE SPLAT TO VIEW 3D

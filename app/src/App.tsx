@@ -6,6 +6,9 @@ import { OutputsPanel } from './components/OutputsPanel';
 import { SplatViewer } from './components/SplatViewer';
 import { LogPanel, useLogs } from './components/LogPanel';
 import { DocsModal } from './components/DocsModal';
+import { StatsDashboard } from './components/StatsDashboard';
+import { MobileCarousel } from './components/MobileCarousel';
+import { useMediaQuery } from './hooks/useMediaQuery';
 import * as api from './services/api';
 import type { JobStatus, ImageUploadResponse, SplatJob } from './types';
 
@@ -17,10 +20,14 @@ function App() {
   const [backendOnline, setBackendOnline] = useState(false);
   const { logs, clearLogs, logError, logSuccess, logInfo } = useLogs();
 
+  // Mobile layout state
+  const isMobile = useMediaQuery('(max-width: 1023px)');
+  const [mobileScreen, setMobileScreen] = useState<0 | 1 | 2>(1); // Default to Viewer
+
   // View settings state
-  const [pointSize, setPointSize] = useState(0.005);
-  const [showColors, setShowColors] = useState(true);
-  const [pointShape, setPointShape] = useState<'square' | 'circle'>('circle');
+  const [showAxes, setShowAxes] = useState(true);
+  const [autoRotate, setAutoRotate] = useState(false);
+  const [pointSize, setPointSize] = useState(1.0);
 
   // Docs modal state
   const [isDocsOpen, setIsDocsOpen] = useState(false);
@@ -32,16 +39,18 @@ function App() {
         const online = await api.healthCheck();
         setBackendOnline(online);
       } catch {
-        // 429 = rate limited but server is responding, so still "online"
-        // Only mark offline if completely unreachable
         setBackendOnline(false);
       }
     };
     checkHealth();
-    // Check every 30 seconds to avoid rate limiting
     const interval = setInterval(checkHealth, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    // If we transition to desktop, reset mobile screen
+    if (!isMobile) setMobileScreen(1);
+  }, [isMobile]);
 
 
   const handleUpload = useCallback(async (file: File) => {
@@ -54,13 +63,16 @@ function App() {
       setUploadedImage(response);
       setStatus('idle');
       logSuccess('UPLOAD', `Image uploaded: ${response.filename} (${response.width}×${response.height})`);
+
+      // On mobile, switch to Viewer after upload
+      if (isMobile) setMobileScreen(1);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Upload failed';
       setError(errorMsg);
       setStatus('error');
       logError('UPLOAD ERROR', errorMsg);
     }
-  }, [logError, logSuccess, logInfo]);
+  }, [logError, logSuccess, logInfo, isMobile]);
 
   const handleGenerate = useCallback(async () => {
     if (!uploadedImage) return;
@@ -73,7 +85,6 @@ function App() {
       const job = await api.generateSplat(uploadedImage.imageId);
       setCurrentJob(job);
 
-      // Log initial status (might be queued)
       if (job.status === 'queued' && job.queuePosition) {
         setStatus('queued');
         logInfo('QUEUE', `Position #${job.queuePosition} - estimated wait: ${job.estimatedWaitSeconds || 0}s`);
@@ -81,13 +92,11 @@ function App() {
         logInfo('INFERENCE', `Job started: ${job.jobId}`);
       }
 
-      // Poll for completion
       const pollInterval = setInterval(async () => {
         try {
           const updatedJob = await api.getSplatStatus(job.jobId);
           setCurrentJob(updatedJob);
 
-          // Update status based on job state
           if (updatedJob.status === 'queued') {
             setStatus('queued');
           } else if (updatedJob.status === 'processing') {
@@ -111,7 +120,7 @@ function App() {
           setError(errorMsg);
           logError('CONNECTION', errorMsg);
         }
-      }, 2000); // Poll every 2 seconds
+      }, 2000);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Generation failed';
       setError(errorMsg);
@@ -127,7 +136,8 @@ function App() {
     setCurrentJob(null);
     setError(undefined);
     logInfo('RESET', 'Workspace cleared');
-  }, [logInfo]);
+    if (isMobile) setMobileScreen(0); // Go back to workflow on reset
+  }, [logInfo, isMobile]);
 
   return (
     <div className="h-screen bg-void flex flex-col overflow-hidden">
@@ -138,6 +148,8 @@ function App() {
         backendOnline={backendOnline}
         onDocsClick={() => setIsDocsOpen(true)}
         currentJob={currentJob}
+        mobileScreen={isMobile ? mobileScreen : undefined}
+        onMobileScreenChange={setMobileScreen}
         onLog={(msg, type) => {
           if (type === 'error') logError('SERVER', msg);
           else if (type === 'success') logSuccess('SERVER', msg);
@@ -150,68 +162,116 @@ function App() {
       <DocsModal isOpen={isDocsOpen} onClose={() => setIsDocsOpen(false)} />
 
       <main className="flex-1 flex overflow-hidden">
-        {/* Left sidebar - Upload, Controls & Outputs */}
-        <div className="w-64 shrink-0 p-4 space-y-4 overflow-y-auto border-r border-metal">
-          <ImageUpload
-            onUpload={handleUpload}
-            uploadedImage={uploadedImage}
-            isUploading={status === 'uploading'}
-            disabled={status === 'processing'}
-          />
-          <ControlPanel
-            uploadedImage={uploadedImage}
-            status={status}
-            onGenerate={handleGenerate}
-            onReset={handleReset}
-            pointSize={pointSize}
-            onPointSizeChange={setPointSize}
-            showColors={showColors}
-            onShowColorsChange={setShowColors}
-            pointShape={pointShape}
-            onPointShapeChange={setPointShape}
-            hasSplat={status === 'complete' && !!currentJob?.splatUrl}
-          />
-          <OutputsPanel
-            splatPath={currentJob?.splatPath || null}
-            splatUrl={currentJob?.splatUrl || null}
-            jobId={currentJob?.jobId || null}
-            isComplete={status === 'complete'}
-            onLog={(message, type) => {
-              if (type === 'error') logError('OUTPUT', message);
-              else if (type === 'success') logSuccess('OUTPUT', message);
-              else logInfo('OUTPUT', message);
-            }}
-          />
-        </div>
+        {isMobile ? (
+          <MobileCarousel index={mobileScreen} onIndexChange={(n) => setMobileScreen(n as 0 | 1 | 2)}>
+            {/* Screen 0: Workflow */}
+            <div className="w-full h-full p-4 pb-20 space-y-4 overflow-y-auto border-r border-metal bg-card/20">
+              <ImageUpload
+                onUpload={handleUpload}
+                uploadedImage={uploadedImage}
+                isUploading={status === 'uploading'}
+                disabled={status === 'processing'}
+              />
+              <ControlPanel
+                uploadedImage={uploadedImage}
+                status={status}
+                onGenerate={handleGenerate}
+                onReset={handleReset}
+                showAxes={showAxes}
+                onShowAxesChange={setShowAxes}
+                autoRotate={autoRotate}
+                onAutoRotateChange={setAutoRotate}
+                pointSize={pointSize}
+                onSplatScaleChange={setPointSize}
+                hasSplat={status === 'complete' && !!currentJob?.splatUrl}
+              />
+              <OutputsPanel
+                splatPath={currentJob?.splatPath || null}
+                splatUrl={currentJob?.splatUrl || null}
+                jobId={currentJob?.jobId || null}
+                isComplete={status === 'complete'}
+                onLog={(message, type) => {
+                  if (type === 'error') logError('OUTPUT', message);
+                  else if (type === 'success') logSuccess('OUTPUT', message);
+                  else logInfo('OUTPUT', message);
+                }}
+              />
+            </div>
 
-        {/* Center content - 3D Viewer (fills remaining space) */}
-        <div className="flex-1 p-4 min-w-0">
-          <SplatViewer
-            splatUrl={currentJob?.splatUrl ? api.getFullApiUrl(currentJob.splatUrl) : undefined}
-            showAxes={true}
-            autoRotate={false}
-            pointSize={pointSize}
-            showColors={showColors}
-            pointShape={pointShape}
-            onError={(error) => {
-              logError('VIEWER', `Failed to load splat: ${error}`);
-              setError(`Failed to load 3D model: ${error}`);
-              setStatus('error');
-            }}
-            onLog={(message) => {
-              logInfo('VIEWER', message);
-            }}
-          />
-        </div>
+            {/* Screen 1: Viewer */}
+            <div className="w-full h-full p-2 min-w-0">
+              <SplatViewer
+                splatUrl={currentJob?.splatUrl ? api.getFullApiUrl(currentJob.splatUrl) : undefined}
+                showAxes={showAxes}
+                autoRotate={autoRotate}
+                pointSize={pointSize}
+              />
+            </div>
 
-        {/* Right sidebar - Logs (full height) */}
-        <div className="w-72 shrink-0 p-4 border-l border-metal flex flex-col h-full">
-          <LogPanel logs={logs} onClear={clearLogs} />
-        </div>
+            {/* Screen 2: Logs */}
+            <div className="w-full h-full p-4 border-l border-metal flex flex-col bg-card/20">
+              <LogPanel logs={logs} onClear={clearLogs} />
+            </div>
+          </MobileCarousel>
+        ) : (
+          <>
+            {/* Left sidebar - Workflow */}
+            <div className="w-64 shrink-0 p-4 space-y-4 overflow-y-auto border-r border-metal">
+              <ImageUpload
+                onUpload={handleUpload}
+                uploadedImage={uploadedImage}
+                isUploading={status === 'uploading'}
+                disabled={status === 'processing'}
+              />
+              <ControlPanel
+                uploadedImage={uploadedImage}
+                status={status}
+                onGenerate={handleGenerate}
+                onReset={handleReset}
+                showAxes={showAxes}
+                onShowAxesChange={setShowAxes}
+                autoRotate={autoRotate}
+                onAutoRotateChange={setAutoRotate}
+                pointSize={pointSize}
+                onSplatScaleChange={setPointSize}
+                hasSplat={status === 'complete' && !!currentJob?.splatUrl}
+              />
+              <OutputsPanel
+                splatPath={currentJob?.splatPath || null}
+                splatUrl={currentJob?.splatUrl || null}
+                jobId={currentJob?.jobId || null}
+                isComplete={status === 'complete'}
+                onLog={(message, type) => {
+                  if (type === 'error') logError('OUTPUT', message);
+                  else if (type === 'success') logSuccess('OUTPUT', message);
+                  else logInfo('OUTPUT', message);
+                }}
+              />
+            </div>
+
+            {/* Center content - 3D Viewer */}
+            <div className="flex-1 p-4 min-w-0">
+              <SplatViewer
+                splatUrl={currentJob?.splatUrl ? api.getFullApiUrl(currentJob.splatUrl) : undefined}
+                showAxes={showAxes}
+                autoRotate={autoRotate}
+                pointSize={pointSize}
+              />
+            </div>
+
+            {/* Right sidebar - Logs */}
+            <div className="w-72 shrink-0 p-4 border-l border-metal flex flex-col h-full">
+              <LogPanel logs={logs} onClear={clearLogs} />
+            </div>
+          </>
+        )}
       </main>
 
+      {/* Usage & Cost Dashboard */}
+      <StatsDashboard />
     </div>
   );
 }
+
 
 export default App;

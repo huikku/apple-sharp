@@ -12,9 +12,22 @@ interface HeaderProps {
     currentJob?: SplatJob | null;
     onServerWake?: () => void;
     onLog?: (message: string, type: 'info' | 'success' | 'error') => void;
+    mobileScreen?: number;
+    onMobileScreenChange?: (screen: 0 | 1 | 2) => void;
 }
 
-export function Header({ status, processingTime, error, backendOnline, onDocsClick, currentJob, onServerWake, onLog }: HeaderProps) {
+export function Header({
+    status,
+    processingTime,
+    error,
+    backendOnline,
+    onDocsClick,
+    currentJob,
+    onServerWake,
+    onLog,
+    mobileScreen,
+    onMobileScreenChange
+}: HeaderProps) {
     const [isWaking, setIsWaking] = useState(false);
 
     const handleWakeUp = async () => {
@@ -50,11 +63,35 @@ export function Header({ status, processingTime, error, backendOnline, onDocsCli
                     href="https://github.com/apple/ml-sharp"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-xs text-muted hover:text-info transition-colors"
+                    className="text-xs text-muted hover:text-info transition-colors hidden sm:inline"
                 >
                     Apple Research
                 </a>
             </div>
+
+            {/* Mobile Screen Switcher */}
+            {onMobileScreenChange !== undefined && (
+                <div className="flex bg-void/50 border border-metal/30 rounded-md p-0.5 gap-0.5">
+                    <button
+                        onClick={() => onMobileScreenChange(0)}
+                        className={`px-3 py-1.5 rounded-sm text-[10px] font-bold uppercase tracking-tight transition-all ${mobileScreen === 0 ? 'bg-info text-void' : 'text-muted hover:text-foreground'}`}
+                    >
+                        Workflow
+                    </button>
+                    <button
+                        onClick={() => onMobileScreenChange(1)}
+                        className={`px-3 py-1.5 rounded-sm text-[10px] font-bold uppercase tracking-tight transition-all ${mobileScreen === 1 ? 'bg-info text-void' : 'text-muted hover:text-foreground'}`}
+                    >
+                        Viewer
+                    </button>
+                    <button
+                        onClick={() => onMobileScreenChange(2)}
+                        className={`px-3 py-1.5 rounded-sm text-[10px] font-bold uppercase tracking-tight transition-all ${mobileScreen === 2 ? 'bg-info text-void' : 'text-muted hover:text-foreground'}`}
+                    >
+                        Logs
+                    </button>
+                </div>
+            )}
 
             <div className="flex items-center gap-6">
                 <StatusIndicator

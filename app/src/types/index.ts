@@ -35,3 +35,18 @@ export interface AppState {
     currentJob: SplatJob | null;
     viewerConfig: ViewerConfig;
 }
+
+export interface UsageStats {
+    allTime: number;
+    thisYear: number;
+    thisMonth: number;
+    thisDay: number;
+    thisHour: number;
+}
+
+export interface CostStats {
+    estimatedUsageCost: number;
+    monthlyFixedCost: number;
+    currency: string;
+    note: string;
+}

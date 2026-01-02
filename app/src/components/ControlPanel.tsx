@@ -6,12 +6,12 @@ interface ControlPanelProps {
     onGenerate: () => void;
     onReset: () => void;
     // View settings
+    showAxes: boolean;
+    onShowAxesChange: (show: boolean) => void;
+    autoRotate: boolean;
+    onAutoRotateChange: (rotate: boolean) => void;
     pointSize: number;
-    onPointSizeChange: (size: number) => void;
-    showColors: boolean;
-    onShowColorsChange: (show: boolean) => void;
-    pointShape: 'square' | 'circle';
-    onPointShapeChange: (shape: 'square' | 'circle') => void;
+    onSplatScaleChange: (scale: number) => void;
     hasSplat: boolean;
 }
 
@@ -20,12 +20,12 @@ export function ControlPanel({
     status,
     onGenerate,
     onReset,
+    showAxes,
+    onShowAxesChange,
+    autoRotate,
+    onAutoRotateChange,
     pointSize,
-    onPointSizeChange,
-    showColors,
-    onShowColorsChange,
-    pointShape,
-    onPointShapeChange,
+    onSplatScaleChange,
     hasSplat,
 }: ControlPanelProps) {
     const canGenerate = uploadedImage !== null && status === 'idle';
@@ -83,49 +83,58 @@ export function ControlPanel({
                 <div className="mt-4 pt-4 border-t border-metal space-y-3">
                     <p className="text-xs text-muted uppercase tracking-wider">VIEW SETTINGS</p>
 
-                    {/* Point Size */}
-                    <div>
-                        <div className="flex justify-between text-xs text-muted mb-1">
-                            <span>Point Size</span>
-                            <span className="font-mono">{pointSize.toFixed(3)}</span>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => onShowAxesChange(!showAxes)}
+                            className={`
+                                flex-1 py-1.5 rounded text-xs font-medium uppercase transition-colors border
+                                ${showAxes
+                                    ? 'bg-info/20 text-info border-info/50'
+                                    : 'bg-plate text-muted border-metal'}
+                            `}
+                        >
+                            {showAxes ? 'AXES' : 'NO AXES'}
+                        </button>
+                        <button
+                            onClick={() => onAutoRotateChange(!autoRotate)}
+                            className={`
+                                flex-1 py-1.5 rounded text-xs font-medium uppercase transition-colors border
+                                ${autoRotate
+                                    ? 'bg-warning/20 text-warning border-warning/50'
+                                    : 'bg-plate text-muted border-metal'}
+                            `}
+                        >
+                            {autoRotate ? 'TURNING' : 'STILL'}
+                        </button>
+                    </div>
+
+                    {/* Splat Scale Slider */}
+                    <div className="pt-1">
+                        <div className="flex justify-between text-[10px] text-muted mb-1 uppercase tracking-widest">
+                            <span>Splat Density</span>
+                            <span className="font-mono text-info">{pointSize.toFixed(1)}x</span>
                         </div>
                         <input
                             type="range"
-                            min="0.001"
-                            max="1.0"
-                            step="0.005"
+                            min="0.01"
+                            max="5.0"
+                            step="0.01"
                             value={pointSize}
-                            onChange={(e) => onPointSizeChange(parseFloat(e.target.value))}
+                            onChange={(e) => onSplatScaleChange(parseFloat(e.target.value))}
                             className="w-full h-1 bg-metal rounded-full appearance-none cursor-pointer
                                 [&::-webkit-slider-thumb]:appearance-none
                                 [&::-webkit-slider-thumb]:w-3
                                 [&::-webkit-slider-thumb]:h-3
                                 [&::-webkit-slider-thumb]:bg-info
-                                [&::-webkit-slider-thumb]:rounded-full"
+                                [&::-webkit-slider-thumb]:rounded-full
+                                hover:[&::-webkit-slider-thumb]:scale-125
+                                transition-all"
                         />
                     </div>
 
-                    {/* Color & Shape toggles */}
-                    <div className="flex gap-2">
-                        <button
-                            onClick={() => onShowColorsChange(!showColors)}
-                            className={`
-                                flex-1 py-1.5 rounded text-xs font-medium uppercase transition-colors border
-                                ${showColors
-                                    ? 'bg-success/20 text-success border-success/50'
-                                    : 'bg-plate text-muted border-metal'}
-                            `}
-                        >
-                            {showColors ? 'COLOR' : 'MONO'}
-                        </button>
-                        <button
-                            onClick={() => onPointShapeChange(pointShape === 'circle' ? 'square' : 'circle')}
-                            className="flex-1 py-1.5 rounded text-xs font-medium uppercase transition-colors border
-                                bg-plate text-muted border-metal hover:text-info hover:border-info"
-                        >
-                            {pointShape === 'circle' ? '● CIRCLE' : '■ SQUARE'}
-                        </button>
-                    </div>
+                    <p className="text-[10px] text-muted italic opacity-60 text-center">
+                        Coordinates: OpenCV (Y-Down)
+                    </p>
                 </div>
             )}
         </div>

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Clipboard, FileJson, Target } from 'lucide-react';
 import { exportGeometry, getExportGeometry } from '../utils/meshExporter';
 import { getFullApiUrl, convertToMesh, getMeshDownloadUrl, type MeshConvertResponse } from '../services/api';
 
@@ -240,7 +241,7 @@ export function OutputsPanel({ splatUrl, jobId, isComplete, splatPath, onLog }: 
                                     bg-plate text-muted border-metal hover:border-warning hover:text-warning"
                                 title="Copy camera parameters"
                             >
-                                📋 Copy
+                                <Clipboard size={12} className="inline mr-1" />Copy
                             </button>
                             <a
                                 href={getFullApiUrl('/api/camera/params.json')}
@@ -249,7 +250,7 @@ export function OutputsPanel({ splatUrl, jobId, isComplete, splatPath, onLog }: 
                                     bg-plate text-muted border-metal hover:border-info hover:text-info"
                                 title="Download camera JSON"
                             >
-                                📄 JSON
+                                <FileJson size={12} className="inline mr-1" />JSON
                             </a>
                             <a
                                 href={getFullApiUrl('/api/camera/frustum.obj')}
@@ -258,7 +259,7 @@ export function OutputsPanel({ splatUrl, jobId, isComplete, splatPath, onLog }: 
                                     bg-plate text-muted border-metal hover:border-success hover:text-success"
                                 title="Download camera frustum mesh"
                             >
-                                🎯 OBJ
+                                <Target size={12} className="inline mr-1" />OBJ
                             </a>
                         </div>
                     </div>

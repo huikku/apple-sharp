@@ -1,5 +1,5 @@
 import axios, { AxiosError } from 'axios';
-import type { ImageUploadResponse, SplatJob } from '../types';
+import type { ImageUploadResponse, SplatJob, UsageStats, CostStats } from '../types';
 
 // In production, use Modal API URL from env var
 // In development, use empty string (Vite proxy handles routing)
@@ -231,5 +231,13 @@ export async function getMeshMethods(): Promise<MeshMethodsResponse> {
         2,
         3000
     );
+}
+
+export async function getUsageStats(): Promise<UsageStats> {
+    return api.get<UsageStats>('/api/stats').then(r => r.data);
+}
+
+export async function getCostStats(): Promise<CostStats> {
+    return api.get<CostStats>('/api/costs').then(r => r.data);
 }
 

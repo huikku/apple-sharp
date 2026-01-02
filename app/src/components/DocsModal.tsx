@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { AlertTriangle, Mouse, Settings, Check, X } from 'lucide-react';
 
 interface DocsModalProps {
     isOpen: boolean;
@@ -114,7 +115,7 @@ function AboutTab() {
             </section>
 
             <section className="bg-plate rounded-md p-4">
-                <h4 className="font-medium mb-2 text-warning">⚠️ Notes</h4>
+                <h4 className="font-medium mb-2 text-warning flex items-center gap-1.5"><AlertTriangle size={14} /> Notes</h4>
                 <ul className="list-disc list-inside space-y-1 text-muted text-xs">
                     <li>Uses OpenCV coordinate convention (x right, y down, z forward)</li>
                     <li>Scene center is roughly at (0, 0, +z)</li>
@@ -244,6 +245,14 @@ function MeshingTab() {
                             Use a <strong>Color Attribute</strong> node in your shader to access the "color" layer.
                         </p>
                     </div>
+                    <div className="bg-plate rounded-md p-3">
+                        <div className="font-medium text-xs mb-1">3. GLB Point Clouds</div>
+                        <p className="text-xs text-muted">
+                            Point clouds in GLB are supported by standard GLTF importers. If points don't appear,
+                            ensure <strong>Points</strong> is checked in the Blender import settings or use
+                            the <strong>Splat PLY</strong> format for raw attribute access.
+                        </p>
+                    </div>
                 </div>
             </section>
         </div>
@@ -278,7 +287,7 @@ function UsageTab() {
                 <h3 className="font-display text-lg mb-3 text-success">View Controls</h3>
                 <div className="grid grid-cols-2 gap-4">
                     <div className="bg-plate rounded-md p-3">
-                        <h4 className="font-medium mb-2">🖱️ Mouse</h4>
+                        <h4 className="font-medium mb-2 flex items-center gap-1.5"><Mouse size={14} /> Mouse</h4>
                         <ul className="text-xs text-muted space-y-1">
                             <li>Left drag → Rotate view</li>
                             <li>Right drag → Pan camera</li>
@@ -286,7 +295,7 @@ function UsageTab() {
                         </ul>
                     </div>
                     <div className="bg-plate rounded-md p-3">
-                        <h4 className="font-medium mb-2">⚙️ Settings</h4>
+                        <h4 className="font-medium mb-2 flex items-center gap-1.5"><Settings size={14} /> Settings</h4>
                         <ul className="text-xs text-muted space-y-1">
                             <li>Point Size → Adjust splat size</li>
                             <li>Colors → Toggle RGB/white</li>
@@ -300,28 +309,28 @@ function UsageTab() {
                 <h3 className="font-display text-lg mb-3 text-success">Best Practices</h3>
                 <div className="space-y-3">
                     <div className="flex items-start gap-3">
-                        <span className="text-success">✓</span>
+                        <Check size={14} className="text-success" />
                         <div>
                             <strong>Clear subject</strong>
                             <p className="text-xs text-muted">Center your subject with good lighting</p>
                         </div>
                     </div>
                     <div className="flex items-start gap-3">
-                        <span className="text-success">✓</span>
+                        <Check size={14} className="text-success" />
                         <div>
                             <strong>Simple background</strong>
                             <p className="text-xs text-muted">Plain backgrounds improve reconstruction</p>
                         </div>
                     </div>
                     <div className="flex items-start gap-3">
-                        <span className="text-success">✓</span>
+                        <Check size={14} className="text-success" />
                         <div>
                             <strong>Full body visible</strong>
                             <p className="text-xs text-muted">Include the complete subject in frame</p>
                         </div>
                     </div>
                     <div className="flex items-start gap-3">
-                        <span className="text-critical">✗</span>
+                        <X size={14} className="text-critical" />
                         <div>
                             <strong>Avoid</strong>
                             <p className="text-xs text-muted">Blurry images, extreme poses, heavy occlusion</p>
