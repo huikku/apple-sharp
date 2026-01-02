@@ -148,7 +148,7 @@ class SharpInference:
             
             # 1. Preprocessing
             internal_shape = (1536, 1536)
-            image, _, f_px = io.load_rgb(image_path)
+            image, _, f_px = io.load_rgb(Path(image_path))
             height, width = image.shape[:2]
             
             device = torch.device("cuda")
