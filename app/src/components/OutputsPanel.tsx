@@ -113,7 +113,10 @@ export function OutputsPanel({ splatUrl, jobId, isComplete, splatPath, onLog }: 
 
                     {/* 2. Server-side Mesh Reconstruction */}
                     <div className="pt-3 border-t border-metal">
-                        <p className="text-xs text-muted uppercase tracking-wider mb-2">Mesh Reconstruction (Server)</p>
+                        <div className="flex items-center gap-2 mb-2">
+                            <p className="text-xs text-muted uppercase tracking-wider">Mesh Reconstruction (Server)</p>
+                            <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-warning/20 text-warning border border-warning/30 uppercase tracking-wider">Alpha</span>
+                        </div>
                         <p className="text-xs text-muted mb-3 opacity-70">
                             Create watertight meshes using server algorithms
                         </p>
