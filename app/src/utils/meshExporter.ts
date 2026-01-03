@@ -14,8 +14,15 @@ export function exportToOBJ(geometry: THREE.BufferGeometry, filename: string = '
         throw new Error('Geometry has no position attribute');
     }
 
+    console.log('[Export OBJ] Positions:', positions.count, 'Colors:', colors ? 'yes' : 'no');
+
     let objContent = '# Exported from Sharp 3D Viewer\n';
-    objContent += `# Vertices: ${positions.count}\n\n`;
+    objContent += `# Vertices: ${positions.count}\n`;
+    if (colors) {
+        objContent += '# Vertex format: v x y z r g b (xyzrgb extension)\n';
+        objContent += '# Note: Use PLY format for better Blender color support\n';
+    }
+    objContent += '\n';
 
     // Export vertices
     for (let i = 0; i < positions.count; i++) {
@@ -24,7 +31,7 @@ export function exportToOBJ(geometry: THREE.BufferGeometry, filename: string = '
         const z = positions.getZ(i);
         objContent += `v ${x.toFixed(6)} ${y.toFixed(6)} ${z.toFixed(6)}`;
 
-        // Add vertex colors if available (as comment or extended OBJ)
+        // Add vertex colors if available (xyzrgb format - some software supports this)
         if (colors) {
             const r = colors.getX(i);
             const g = colors.getY(i);
@@ -59,6 +66,8 @@ export function exportToPLY(geometry: THREE.BufferGeometry, filename: string = '
         throw new Error('Geometry has no position attribute');
     }
 
+    console.log('[Export PLY] Positions:', positions.count, 'Colors:', colors ? 'yes' : 'no');
+
     const hasColors = !!colors;
     const vertexCount = positions.count;
 
@@ -87,9 +96,9 @@ export function exportToPLY(geometry: THREE.BufferGeometry, filename: string = '
         let line = `${x.toFixed(6)} ${y.toFixed(6)} ${z.toFixed(6)}`;
 
         if (hasColors) {
-            const r = Math.round(colors.getX(i) * 255);
-            const g = Math.round(colors.getY(i) * 255);
-            const b = Math.round(colors.getZ(i) * 255);
+            const r = Math.round(Math.max(0, Math.min(1, colors.getX(i))) * 255);
+            const g = Math.round(Math.max(0, Math.min(1, colors.getY(i))) * 255);
+            const b = Math.round(Math.max(0, Math.min(1, colors.getZ(i))) * 255);
             line += ` ${r} ${g} ${b}`;
         }
 

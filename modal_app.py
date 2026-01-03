@@ -728,6 +728,22 @@ def fastapi_app():
                     pcd, request.alpha
                 )
             
+            # Transfer vertex colors from point cloud to mesh vertices
+            # Mesh reconstruction doesn't preserve colors, so we sample from nearest points
+            if colors is not None and len(mesh.vertices) > 0:
+                print("[Mesh] Transferring vertex colors from point cloud...")
+                mesh_vertices = np.asarray(mesh.vertices)
+                pcd_tree = o3d.geometry.KDTreeFlann(pcd)
+                vertex_colors = np.zeros((len(mesh_vertices), 3))
+                
+                for i, vertex in enumerate(mesh_vertices):
+                    # Find nearest point in original point cloud
+                    [_, idx, _] = pcd_tree.search_knn_vector_3d(vertex, 1)
+                    vertex_colors[i] = colors[idx[0]]
+                
+                mesh.vertex_colors = o3d.utility.Vector3dVector(vertex_colors)
+                print(f"[Mesh] Transferred colors to {len(mesh_vertices)} vertices")
+            
             # Generate output filename
             mesh_id = str(uuid.uuid4())[:8]
             filename = f"mesh_{mesh_id}.{request.output_format}"
