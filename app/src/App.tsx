@@ -8,7 +8,6 @@ import { SplatViewer } from './components/SplatViewer';
 import { LogPanel, useLogs } from './components/LogPanel';
 import { DocsModal } from './components/DocsModal';
 import { StatsDashboard } from './components/StatsDashboard';
-import { MobileCarousel } from './components/MobileCarousel';
 import { useMediaQuery } from './hooks/useMediaQuery';
 import * as api from './services/api';
 import type { JobStatus, ImageUploadResponse, SplatJob } from './types';
@@ -181,8 +180,21 @@ function App() {
       <main className="flex-1 flex flex-col overflow-hidden">
         {isMobile ? (
           <>
-            <MobileCarousel index={mobileScreen} onIndexChange={(n) => setMobileScreen(n as 0 | 1 | 2)}>
-              {/* Screen 0: Workflow */}
+            {/* Viewer - Always mounted, visibility controlled by CSS */}
+            <div
+              className={`absolute inset-0 z-10 p-2 ${mobileScreen === 1 ? 'visible' : 'invisible pointer-events-none'}`}
+              style={{ display: mobileScreen === 1 ? 'block' : 'none' }}
+            >
+              <SplatViewer
+                splatUrl={currentJob?.splatUrl ? api.getFullApiUrl(currentJob.splatUrl) : undefined}
+                showAxes={showAxes}
+                autoRotate={autoRotate}
+                pointSize={pointSize}
+              />
+            </div>
+
+            {/* Workflow & Logs screens in simplified tabs (no carousel animation) */}
+            <div className={`w-full h-full ${mobileScreen === 0 ? 'block' : 'hidden'}`}>
               <div className="w-full h-full p-4 pb-20 space-y-4 overflow-y-auto border-r border-metal bg-card/20">
                 <ImageUpload
                   onUpload={handleUpload}
@@ -215,22 +227,13 @@ function App() {
                   }}
                 />
               </div>
+            </div>
 
-              {/* Screen 1: Viewer */}
-              <div className="w-full h-full p-2 min-w-0">
-                <SplatViewer
-                  splatUrl={currentJob?.splatUrl ? api.getFullApiUrl(currentJob.splatUrl) : undefined}
-                  showAxes={showAxes}
-                  autoRotate={autoRotate}
-                  pointSize={pointSize}
-                />
-              </div>
-
-              {/* Screen 2: Logs */}
+            <div className={`w-full h-full ${mobileScreen === 2 ? 'block' : 'hidden'}`}>
               <div className="w-full h-full p-4 border-l border-metal flex flex-col bg-card/20">
                 <LogPanel logs={logs} onClear={clearLogs} />
               </div>
-            </MobileCarousel>
+            </div>
 
             {/* Mobile Footer - Always Visible */}
             <footer className="shrink-0 bg-plate border-t border-metal py-2 px-4">
