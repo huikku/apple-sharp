@@ -42,6 +42,9 @@ export interface UsageStats {
     thisMonth: number;
     thisDay: number;
     thisHour: number;
+    queueLength: number;
+    activeJobs: number;
+    hourlyBreakdown: number[];
 }
 
 export interface CostStats {

@@ -46,6 +46,22 @@ export function StatsDashboard() {
                     </div>
 
                     <div className="p-4 space-y-4">
+                        {/* Queue Status */}
+                        <div className="grid grid-cols-2 gap-2">
+                            <div className="bg-void/50 p-2 rounded border border-metal/30">
+                                <p className="text-[10px] text-muted uppercase">In Queue</p>
+                                <p className={`text-xl font-mono ${stats?.queueLength ? 'text-warning' : 'text-muted'}`}>
+                                    {stats ? stats.queueLength : '—'}
+                                </p>
+                            </div>
+                            <div className="bg-void/50 p-2 rounded border border-metal/30">
+                                <p className="text-[10px] text-muted uppercase">Processing</p>
+                                <p className={`text-xl font-mono ${stats?.activeJobs ? 'text-info animate-pulse' : 'text-muted'}`}>
+                                    {stats ? stats.activeJobs : '—'}
+                                </p>
+                            </div>
+                        </div>
+
                         {/* Splat Counters */}
                         <div className="grid grid-cols-2 gap-2">
                             <div className="bg-void/50 p-2 rounded border border-metal/30">
@@ -59,6 +75,29 @@ export function StatsDashboard() {
                                 <p className="text-xl font-mono text-foreground">
                                     {stats ? stats.allTime : '—'}
                                 </p>
+                            </div>
+                        </div>
+
+                        {/* Hourly Graph (Last 24h) */}
+                        <div className="pt-2 border-t border-metal/30">
+                            <p className="text-[10px] text-muted uppercase mb-2">Last 24 Hours</p>
+                            <div className="flex items-end gap-0.5 h-12">
+                                {(stats?.hourlyBreakdown || Array(24).fill(0)).map((count, i) => {
+                                    const max = Math.max(...(stats?.hourlyBreakdown || [1]), 1);
+                                    const height = (count / max) * 100;
+                                    return (
+                                        <div
+                                            key={i}
+                                            className="flex-1 bg-info/60 hover:bg-info transition-all rounded-t"
+                                            style={{ height: `${Math.max(height, 2)}%` }}
+                                            title={`${24 - i}h ago: ${count} splats`}
+                                        />
+                                    );
+                                })}
+                            </div>
+                            <div className="flex justify-between text-[8px] text-muted mt-1">
+                                <span>24h ago</span>
+                                <span>now</span>
                             </div>
                         </div>
 

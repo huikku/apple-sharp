@@ -806,12 +806,31 @@ f 2 5 4
         month_ago = now - 2592000 # 30 days
         year_ago = now - 31536000 # 365 days
         
+        # Calculate hourly breakdown for last 24 hours (for graph)
+        hourly_breakdown = []
+        for i in range(24):
+            # i=0 is current hour, i=23 is 23 hours ago
+            start = now - (i + 1) * 3600
+            end = now - i * 3600
+            count = len([t for t in completions if start < t <= end])
+            hourly_breakdown.append(count)
+        # Reverse so index 0 is oldest (23h ago), index 23 is most recent
+        hourly_breakdown.reverse()
+        
+        # Get queue status from job_dict
+        jobs = list(job_dict.values())
+        queue_length = len([j for j in jobs if j.get("status") == "pending"])
+        active_jobs = len([j for j in jobs if j.get("status") == "processing"])
+        
         return {
             "allTime": total_count,
             "thisYear": len([t for t in completions if t > year_ago]),
             "thisMonth": len([t for t in completions if t > month_ago]),
             "thisDay": len([t for t in completions if t > day_ago]),
             "thisHour": len([t for t in completions if t > hour_ago]),
+            "queueLength": queue_length,
+            "activeJobs": active_jobs,
+            "hourlyBreakdown": hourly_breakdown,
         }
 
     @web_app.get("/api/costs")
