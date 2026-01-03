@@ -23,7 +23,7 @@ function App() {
 
   // Mobile layout state
   const isMobile = useMediaQuery('(max-width: 1023px)');
-  const [mobileScreen, setMobileScreen] = useState<0 | 1 | 2>(1); // Default to Viewer
+  const [mobileScreen, setMobileScreen] = useState<0 | 1 | 2>(0); // Default to Workflow on mobile
 
   // View settings state
   const [showAxes, setShowAxes] = useState(true);
@@ -65,8 +65,7 @@ function App() {
       setStatus('idle');
       logSuccess('UPLOAD', `Image uploaded: ${response.filename} (${response.width}×${response.height})`);
 
-      // On mobile, switch to Viewer after upload
-      if (isMobile) setMobileScreen(1);
+      // Stay on workflow after upload - user will click Generate to switch to Viewer
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Upload failed';
       setError(errorMsg);
@@ -89,8 +88,12 @@ function App() {
       if (job.status === 'queued' && job.queuePosition) {
         setStatus('queued');
         logInfo('QUEUE', `Position #${job.queuePosition} - estimated wait: ${job.estimatedWaitSeconds || 0}s`);
+        // On mobile, switch to Viewer when generation starts
+        if (isMobile) setMobileScreen(1);
       } else {
         logInfo('INFERENCE', `Job started: ${job.jobId}`);
+        // On mobile, switch to Viewer when generation starts
+        if (isMobile) setMobileScreen(1);
       }
 
       const pollInterval = setInterval(async () => {
