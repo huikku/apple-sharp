@@ -35,7 +35,7 @@ This guide walks you through setting up a complete staging environment for Apple
 
 | Aspect | Development | Staging | Production |
 |--------|-------------|---------|------------|
-| **Frontend URL** | `localhost:5173` | `johnbanq.github.io/apple-sharp/staging/` | `johnbanq.github.io/apple-sharp/` |
+| **Frontend URL** | `localhost:5173` | `huikku.github.io/apple-sharp/staging/` | `huikku.github.io/apple-sharp/` |
 | **Backend URL** | `localhost:8001` | `*--sharp-api-staging-web.modal.run` | `*--sharp-api-web.modal.run` |
 | **Modal App Name** | N/A | `sharp-api-staging` | `sharp-api` |
 | **Sentry Environment** | `development` | `staging` | `production` |
@@ -187,7 +187,7 @@ web_app = FastAPI(
 web_app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://johnbanq.github.io",  # GitHub Pages (both prod and staging)
+        "https://huikku.github.io",  # GitHub Pages (both prod and staging)
         "http://localhost:5173",        # Local dev
         "http://localhost:3000",        # Alternative local port
         "http://127.0.0.1:5173",
@@ -519,7 +519,7 @@ jobs:
       - name: Deployment Status
         run: |
           echo "Staging deployment completed!"
-          echo "Frontend: https://johnbanq.github.io/apple-sharp/staging/"
+          echo "Frontend: https://huikku.github.io/apple-sharp/staging/"
           echo "Backend: ${{ secrets.MODAL_STAGING_API_URL }}"
 ```
 
@@ -590,7 +590,7 @@ curl -X POST https://yourname--sharp-api-staging-web.modal.run/api/inference/upl
 curl https://yourname--sharp-api-staging-web.modal.run/api/health
 
 # Check Sentry staging environment
-# Visit: https://alienrobot.sentry.io/issues/?environment=staging
+# Visit: https://your-sentry-org.sentry.io/issues/?environment=staging
 ```
 
 ---
@@ -843,7 +843,7 @@ git push origin main
 # - Watch GitHub Actions
 # - Check Sentry production environment
 # - Monitor Modal production app
-# - Check https://johnbanq.github.io/apple-sharp/
+# - Check https://huikku.github.io/apple-sharp/
 
 # 6. If issues arise, rollback
 git revert HEAD
@@ -859,8 +859,8 @@ git push origin main
 | Environment | Frontend | Backend |
 |-------------|----------|---------|
 | **Development** | http://localhost:5173 | http://localhost:8001 |
-| **Staging** | https://johnbanq.github.io/apple-sharp/staging/ | https://yourname--sharp-api-staging-web.modal.run |
-| **Production** | https://johnbanq.github.io/apple-sharp/ | https://yourname--sharp-api-web.modal.run |
+| **Staging** | https://huikku.github.io/apple-sharp/staging/ | https://huikku--sharp-api-staging-web.modal.run |
+| **Production** | https://huikku.github.io/apple-sharp/ | https://huikku--sharp-api-web.modal.run |
 
 ### Git Branches
 
