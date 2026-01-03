@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
+import { Coffee } from 'lucide-react';
 import { Header } from './components/Header';
 import { ImageUpload } from './components/ImageUpload';
 import { ControlPanel } from './components/ControlPanel';
@@ -250,13 +251,50 @@ function App() {
             </div>
 
             {/* Center content - 3D Viewer */}
-            <div className="flex-1 p-4 min-w-0">
-              <SplatViewer
-                splatUrl={currentJob?.splatUrl ? api.getFullApiUrl(currentJob.splatUrl) : undefined}
-                showAxes={showAxes}
-                autoRotate={autoRotate}
-                pointSize={pointSize}
-              />
+            <div className="flex-1 p-4 min-w-0 flex flex-col">
+              {/* Viewer with spinner overlay */}
+              <div className="flex-1 relative">
+                <SplatViewer
+                  splatUrl={currentJob?.splatUrl ? api.getFullApiUrl(currentJob.splatUrl) : undefined}
+                  showAxes={showAxes}
+                  autoRotate={autoRotate}
+                  pointSize={pointSize}
+                />
+                {/* Processing Spinner Overlay */}
+                {(status === 'uploading' || status === 'processing' || status === 'queued') && (
+                  <div className="absolute inset-0 bg-void/80 backdrop-blur-sm flex items-center justify-center z-10">
+                    <div className="text-center">
+                      <div className="w-12 h-12 mx-auto mb-3 border-4 border-info border-t-transparent rounded-full animate-spin" />
+                      <p className="text-sm text-muted uppercase tracking-wider">
+                        {status === 'uploading' ? 'Uploading...' : status === 'queued' ? 'In Queue...' : 'Processing...'}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="mt-2 pt-2 border-t border-metal/30 flex items-center justify-center gap-4 text-[10px] text-muted">
+                <span>© 2026 John Huikku, Alienrobot LLC</span>
+                <a
+                  href="https://www.ALIENROBOT.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-info transition-colors"
+                >
+                  www.ALIENROBOT.com
+                </a>
+                <a
+                  href="https://ko-fi.com/alienrobot"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 hover:text-warning transition-colors"
+                  title="Buy me a coffee"
+                >
+                  <Coffee size={12} />
+                  <span>Support</span>
+                </a>
+              </div>
             </div>
 
             {/* Right sidebar - Logs */}
