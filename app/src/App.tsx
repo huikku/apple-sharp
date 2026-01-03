@@ -177,13 +177,12 @@ function App() {
       {/* Documentation Modal */}
       <DocsModal isOpen={isDocsOpen} onClose={() => setIsDocsOpen(false)} />
 
-      <main className="flex-1 flex flex-col overflow-hidden">
+      <main className="flex-1 flex flex-col overflow-hidden relative">
         {isMobile ? (
           <>
-            {/* Viewer - Always mounted, visibility controlled by CSS */}
+            {/* Viewer - Full height when visible */}
             <div
-              className={`absolute inset-0 z-10 p-2 ${mobileScreen === 1 ? 'visible' : 'invisible pointer-events-none'}`}
-              style={{ display: mobileScreen === 1 ? 'block' : 'none' }}
+              className={`w-full h-full p-2 ${mobileScreen === 1 ? 'block' : 'hidden'}`}
             >
               <SplatViewer
                 splatUrl={currentJob?.splatUrl ? api.getFullApiUrl(currentJob.splatUrl) : undefined}
@@ -193,7 +192,7 @@ function App() {
               />
             </div>
 
-            {/* Workflow & Logs screens in simplified tabs (no carousel animation) */}
+            {/* Workflow screen */}
             <div className={`w-full h-full ${mobileScreen === 0 ? 'block' : 'hidden'}`}>
               <div className="w-full h-full p-4 pb-20 space-y-4 overflow-y-auto border-r border-metal bg-card/20">
                 <ImageUpload
