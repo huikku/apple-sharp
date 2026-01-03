@@ -339,6 +339,7 @@ def fastapi_app():
     # SECURITY: Restrict CORS to known frontend origins
     ALLOWED_ORIGINS = [
         "https://huikku.github.io",  # Production GitHub Pages
+        "https://superspl.at",       # SuperSplat editor (for Open in SuperSplat feature)
         "http://localhost:5173",     # Local Vite dev server
         "http://localhost:3000",     # Alternative local dev
         "http://127.0.0.1:5173",
