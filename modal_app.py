@@ -392,7 +392,7 @@ def fastapi_app():
     async def root():
         return {
             "name": "Sharp API (Modal)",
-            "version": "2.0.0",
+            "version": "2.1.0",
             "docs": "/docs",
             "health": "/api/health",
             "queue": "/api/queue",
@@ -416,7 +416,7 @@ def fastapi_app():
         return {
             "status": "ok",
             "service": "sharp-api-modal",
-            "version": "2.0.0",
+            "version": "2.1.0",
             "activeJobs": active_count,
             "queuedJobs": queued_count,
         }
