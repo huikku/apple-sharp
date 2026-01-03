@@ -635,8 +635,11 @@ def fastapi_app():
         # Retry with volume reloads to handle sync timing
         max_retries = 5
         for attempt in range(max_retries):
-            # Reload volume to get latest files
-            outputs_volume.reload()
+            # Reload volume to get latest files (may fail if files are open)
+            try:
+                outputs_volume.reload()
+            except Exception as e:
+                print(f"[Download] Volume reload skipped (files may be open): {e}")
             
             # Log what exists on each attempt
             if splat_dir.exists():
