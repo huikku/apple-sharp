@@ -27,7 +27,7 @@ function App() {
   // View settings state
   const [showAxes, setShowAxes] = useState(true);
   const [autoRotate, setAutoRotate] = useState(false);
-  const [pointSize, setPointSize] = useState(1.0);
+  const [pointSize, setPointSize] = useState(0.5);
 
   // Docs modal state
   const [isDocsOpen, setIsDocsOpen] = useState(false);
