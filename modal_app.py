@@ -39,6 +39,8 @@ image = (
         "einops",
         "timm",
         "huggingface_hub",
+        # Monitoring
+        "sentry-sdk[fastapi]",
     )
     .run_commands(
         # Clone and install ml-sharp
@@ -325,6 +327,17 @@ def fastapi_app():
     from fastapi.responses import FileResponse
     from pydantic import BaseModel
     
+    # Initialize Sentry for error monitoring
+    import sentry_sdk
+    sentry_sdk.init(
+        dsn="https://589f5e704f236cd0b6617441e77529d7@o4510647893950464.ingest.us.sentry.io/4510647908761600",
+        send_default_pii=True,  # Include request headers/IP
+        traces_sample_rate=0.1,  # 10% of requests for performance monitoring
+        profiles_sample_rate=0.1,  # 10% for profiling
+        environment="production",
+    )
+    print("[Sentry] Initialized error monitoring")
+    
     # Ensure directories exist
     Path("/outputs/uploads").mkdir(parents=True, exist_ok=True)
     Path("/outputs/splats").mkdir(parents=True, exist_ok=True)
@@ -333,7 +346,7 @@ def fastapi_app():
     web_app = FastAPI(
         title="Sharp API",
         description="Apple Sharp monocular view synthesis - deployed on Modal",
-        version="2.0.0",
+        version="2.1.0",
     )
     
     # SECURITY: Restrict CORS to known frontend origins
