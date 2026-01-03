@@ -102,10 +102,10 @@ export function OutputsPanel({ splatUrl, jobId, isComplete, splatPath, onLog }: 
                     {/* 1. PLY Download & SuperSplat */}
                     <div>
                         <p className="text-xs text-muted uppercase tracking-wider mb-2">Gaussian Splat</p>
-                        <div className="flex gap-2">
+                        <div className="flex flex-col gap-2">
                             <button
                                 onClick={handleDownloadPly}
-                                className="flex-1 py-2 px-3 rounded-sm text-sm font-medium uppercase tracking-wider
+                                className="w-full py-2 px-3 rounded-sm text-sm font-medium uppercase tracking-wider
                                     transition-colors border bg-transparent text-success border-success hover:bg-success/10"
                             >
                                 Download .PLY
@@ -114,12 +114,12 @@ export function OutputsPanel({ splatUrl, jobId, isComplete, splatPath, onLog }: 
                                 href={`https://superspl.at/editor?load=${encodeURIComponent(getFullApiUrl(splatUrl || ''))}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="flex items-center gap-1.5 py-2 px-3 rounded-sm text-sm font-medium uppercase tracking-wider
+                                className="flex items-center justify-center gap-1.5 w-full py-2 px-3 rounded-sm text-sm font-medium uppercase tracking-wider
                                     transition-colors border bg-transparent text-info border-info hover:bg-info/10"
                                 title="Open in SuperSplat Editor"
                             >
                                 <ExternalLink size={14} />
-                                SuperSplat
+                                Open in SuperSplat
                             </a>
                         </div>
                     </div>
