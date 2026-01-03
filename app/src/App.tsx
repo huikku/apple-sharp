@@ -165,60 +165,88 @@ function App() {
       {/* Documentation Modal */}
       <DocsModal isOpen={isDocsOpen} onClose={() => setIsDocsOpen(false)} />
 
-      <main className="flex-1 flex overflow-hidden">
+      <main className="flex-1 flex flex-col overflow-hidden">
         {isMobile ? (
-          <MobileCarousel index={mobileScreen} onIndexChange={(n) => setMobileScreen(n as 0 | 1 | 2)}>
-            {/* Screen 0: Workflow */}
-            <div className="w-full h-full p-4 pb-20 space-y-4 overflow-y-auto border-r border-metal bg-card/20">
-              <ImageUpload
-                onUpload={handleUpload}
-                uploadedImage={uploadedImage}
-                isUploading={status === 'uploading'}
-                disabled={status === 'processing'}
-              />
-              <ControlPanel
-                uploadedImage={uploadedImage}
-                status={status}
-                onGenerate={handleGenerate}
-                onReset={handleReset}
-                showAxes={showAxes}
-                onShowAxesChange={setShowAxes}
-                autoRotate={autoRotate}
-                onAutoRotateChange={setAutoRotate}
-                pointSize={pointSize}
-                onSplatScaleChange={setPointSize}
-                hasSplat={status === 'complete' && !!currentJob?.splatUrl}
-              />
-              <OutputsPanel
-                splatPath={currentJob?.splatPath || null}
-                splatUrl={currentJob?.splatUrl || null}
-                jobId={currentJob?.jobId || null}
-                isComplete={status === 'complete'}
-                onLog={(message, type) => {
-                  if (type === 'error') logError('OUTPUT', message);
-                  else if (type === 'success') logSuccess('OUTPUT', message);
-                  else logInfo('OUTPUT', message);
-                }}
-              />
-            </div>
-
-            {/* Screen 1: Viewer */}
-            <div className="w-full h-full p-2 min-w-0">
-              <SplatViewer
-                splatUrl={currentJob?.splatUrl ? api.getFullApiUrl(currentJob.splatUrl) : undefined}
-                showAxes={showAxes}
-                autoRotate={autoRotate}
-                pointSize={pointSize}
-              />
-            </div>
-
-            {/* Screen 2: Logs */}
-            <div className="w-full h-full p-4 border-l border-metal flex flex-col bg-card/20">
-              <LogPanel logs={logs} onClear={clearLogs} />
-            </div>
-          </MobileCarousel>
-        ) : (
           <>
+            <MobileCarousel index={mobileScreen} onIndexChange={(n) => setMobileScreen(n as 0 | 1 | 2)}>
+              {/* Screen 0: Workflow */}
+              <div className="w-full h-full p-4 pb-20 space-y-4 overflow-y-auto border-r border-metal bg-card/20">
+                <ImageUpload
+                  onUpload={handleUpload}
+                  uploadedImage={uploadedImage}
+                  isUploading={status === 'uploading'}
+                  disabled={status === 'processing'}
+                />
+                <ControlPanel
+                  uploadedImage={uploadedImage}
+                  status={status}
+                  onGenerate={handleGenerate}
+                  onReset={handleReset}
+                  showAxes={showAxes}
+                  onShowAxesChange={setShowAxes}
+                  autoRotate={autoRotate}
+                  onAutoRotateChange={setAutoRotate}
+                  pointSize={pointSize}
+                  onSplatScaleChange={setPointSize}
+                  hasSplat={status === 'complete' && !!currentJob?.splatUrl}
+                />
+                <OutputsPanel
+                  splatPath={currentJob?.splatPath || null}
+                  splatUrl={currentJob?.splatUrl || null}
+                  jobId={currentJob?.jobId || null}
+                  isComplete={status === 'complete'}
+                  onLog={(message, type) => {
+                    if (type === 'error') logError('OUTPUT', message);
+                    else if (type === 'success') logSuccess('OUTPUT', message);
+                    else logInfo('OUTPUT', message);
+                  }}
+                />
+              </div>
+
+              {/* Screen 1: Viewer */}
+              <div className="w-full h-full p-2 min-w-0">
+                <SplatViewer
+                  splatUrl={currentJob?.splatUrl ? api.getFullApiUrl(currentJob.splatUrl) : undefined}
+                  showAxes={showAxes}
+                  autoRotate={autoRotate}
+                  pointSize={pointSize}
+                />
+              </div>
+
+              {/* Screen 2: Logs */}
+              <div className="w-full h-full p-4 border-l border-metal flex flex-col bg-card/20">
+                <LogPanel logs={logs} onClear={clearLogs} />
+              </div>
+            </MobileCarousel>
+
+            {/* Mobile Footer - Always Visible */}
+            <footer className="shrink-0 bg-plate border-t border-metal py-2 px-4">
+              <div className="flex items-center justify-between text-[10px] text-muted">
+                <span>© 2026 John Huikku</span>
+                <div className="flex items-center gap-3">
+                  <a
+                    href="https://www.ALIENROBOT.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:text-info transition-colors font-medium"
+                  >
+                    ALIENROBOT
+                  </a>
+                  <a
+                    href="https://ko-fi.com/alienrobot"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 hover:text-warning transition-colors"
+                    title="Support"
+                  >
+                    <Coffee size={12} />
+                  </a>
+                </div>
+              </div>
+            </footer>
+          </>
+        ) : (
+          <div className="flex flex-1 overflow-hidden">
             {/* Left sidebar - Workflow */}
             <div className="w-64 shrink-0 p-4 space-y-4 overflow-y-auto border-r border-metal">
               <ImageUpload
@@ -304,13 +332,13 @@ function App() {
             <div className="w-72 shrink-0 p-4 border-l border-metal flex flex-col h-full">
               <LogPanel logs={logs} onClear={clearLogs} />
             </div>
-          </>
+          </div>
         )}
       </main>
 
       {/* Usage & Cost Dashboard */}
       <StatsDashboard />
-    </div>
+    </div >
   );
 }
 

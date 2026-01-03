@@ -48,95 +48,118 @@ export function Header({
     };
 
     return (
-        <header className="h-14 bg-plate border-b border-metal flex items-center justify-between px-3 sm:px-6">
-            <div className="flex items-center gap-2 sm:gap-4">
-                <h1 className="font-display text-lg sm:text-xl tracking-tight text-[var(--foreground)]">
-                    SHARP
-                </h1>
-                <span className="text-xs text-muted uppercase tracking-wider hidden md:inline">
-                    Monocular View Synthesis
-                </span>
-                <span className="text-xs text-muted/60 hidden md:inline">
-                    •
-                </span>
-                <a
-                    href="https://github.com/apple/ml-sharp"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-muted hover:text-info transition-colors hidden md:inline"
-                >
-                    Apple Research
-                </a>
+        <header className="bg-plate border-b border-metal">
+            {/* Row 1: Logo + Status (always) */}
+            <div className="h-12 sm:h-14 flex items-center justify-between px-3 sm:px-6">
+                <div className="flex items-center gap-2 sm:gap-4">
+                    <h1 className="font-display text-lg sm:text-xl tracking-tight text-[var(--foreground)]">
+                        SHARP
+                    </h1>
+                    <span className="text-xs text-muted uppercase tracking-wider hidden md:inline">
+                        Monocular View Synthesis
+                    </span>
+                    <span className="text-xs text-muted/60 hidden md:inline">
+                        •
+                    </span>
+                    <a
+                        href="https://github.com/apple/ml-sharp"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-muted hover:text-info transition-colors hidden md:inline"
+                    >
+                        Apple Research
+                    </a>
+                </div>
+
+                {/* Desktop: Screen switcher inline */}
+                {mobileScreen !== undefined && onMobileScreenChange !== undefined && (
+                    <div className="hidden sm:flex bg-void/50 border border-metal/30 rounded-md p-0.5 gap-0.5">
+                        <button
+                            onClick={() => onMobileScreenChange(0)}
+                            className={`px-3 py-1.5 rounded-sm text-[10px] font-bold uppercase tracking-tight transition-all ${mobileScreen === 0 ? 'bg-info text-void' : 'text-muted hover:text-foreground'}`}
+                        >
+                            Workflow
+                        </button>
+                        <button
+                            onClick={() => onMobileScreenChange(1)}
+                            className={`px-3 py-1.5 rounded-sm text-[10px] font-bold uppercase tracking-tight transition-all ${mobileScreen === 1 ? 'bg-info text-void' : 'text-muted hover:text-foreground'}`}
+                        >
+                            Viewer
+                        </button>
+                        <button
+                            onClick={() => onMobileScreenChange(2)}
+                            className={`px-3 py-1.5 rounded-sm text-[10px] font-bold uppercase tracking-tight transition-all ${mobileScreen === 2 ? 'bg-info text-void' : 'text-muted hover:text-foreground'}`}
+                        >
+                            Logs
+                        </button>
+                    </div>
+                )}
+
+                <div className="flex items-center gap-2 sm:gap-4">
+                    <StatusIndicator
+                        status={status}
+                        processingTime={processingTime}
+                        error={error}
+                        currentJob={currentJob}
+                    />
+
+                    {/* Docs Button */}
+                    <button
+                        onClick={onDocsClick}
+                        className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-sm text-xs text-muted hover:text-[var(--color-fp-text)] hover:bg-frame transition-colors border border-metal"
+                    >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                        </svg>
+                        <span className="hidden sm:inline">Docs</span>
+                    </button>
+
+                    {/* Server Status */}
+                    <div className="flex items-center gap-1.5">
+                        <span
+                            className={`inline-block w-2 h-2 rounded-full ${backendOnline ? 'bg-success' : 'bg-critical'}`}
+                        />
+                        <span className="text-[10px] sm:text-xs text-muted uppercase tracking-wider">
+                            {backendOnline ? 'ONLINE' : 'OFF'}
+                        </span>
+                        {!backendOnline && (
+                            <button
+                                onClick={handleWakeUp}
+                                disabled={isWaking}
+                                className="px-1.5 py-0.5 text-[10px] rounded bg-warning/20 text-warning border border-warning/50 hover:bg-warning/30 transition-colors disabled:opacity-50"
+                            >
+                                {isWaking ? '...' : 'Wake'}
+                            </button>
+                        )}
+                    </div>
+                </div>
             </div>
 
-            {/* Mobile Screen Switcher */}
+            {/* Row 2: Mobile Navigation Tabs (mobile only) */}
             {mobileScreen !== undefined && onMobileScreenChange !== undefined && (
-                <div className="flex bg-void/50 border border-metal/30 rounded-md p-0.5 gap-0.5">
-                    <button
-                        onClick={() => onMobileScreenChange(0)}
-                        className={`px-3 py-1.5 rounded-sm text-[10px] font-bold uppercase tracking-tight transition-all ${mobileScreen === 0 ? 'bg-info text-void' : 'text-muted hover:text-foreground'}`}
-                    >
-                        Workflow
-                    </button>
-                    <button
-                        onClick={() => onMobileScreenChange(1)}
-                        className={`px-3 py-1.5 rounded-sm text-[10px] font-bold uppercase tracking-tight transition-all ${mobileScreen === 1 ? 'bg-info text-void' : 'text-muted hover:text-foreground'}`}
-                    >
-                        Viewer
-                    </button>
-                    <button
-                        onClick={() => onMobileScreenChange(2)}
-                        className={`px-3 py-1.5 rounded-sm text-[10px] font-bold uppercase tracking-tight transition-all ${mobileScreen === 2 ? 'bg-info text-void' : 'text-muted hover:text-foreground'}`}
-                    >
-                        Logs
-                    </button>
+                <div className="sm:hidden flex justify-center border-t border-metal/50 bg-void/30 py-1.5 px-2">
+                    <div className="flex bg-void/50 border border-metal/30 rounded-md p-0.5 gap-0.5">
+                        <button
+                            onClick={() => onMobileScreenChange(0)}
+                            className={`px-4 py-1.5 rounded-sm text-xs font-bold uppercase tracking-tight transition-all ${mobileScreen === 0 ? 'bg-info text-void' : 'text-muted hover:text-foreground'}`}
+                        >
+                            Workflow
+                        </button>
+                        <button
+                            onClick={() => onMobileScreenChange(1)}
+                            className={`px-4 py-1.5 rounded-sm text-xs font-bold uppercase tracking-tight transition-all ${mobileScreen === 1 ? 'bg-info text-void' : 'text-muted hover:text-foreground'}`}
+                        >
+                            Viewer
+                        </button>
+                        <button
+                            onClick={() => onMobileScreenChange(2)}
+                            className={`px-4 py-1.5 rounded-sm text-xs font-bold uppercase tracking-tight transition-all ${mobileScreen === 2 ? 'bg-info text-void' : 'text-muted hover:text-foreground'}`}
+                        >
+                            Logs
+                        </button>
+                    </div>
                 </div>
             )}
-
-            <div className="flex items-center gap-2 sm:gap-6">
-                <StatusIndicator
-                    status={status}
-                    processingTime={processingTime}
-                    error={error}
-                    currentJob={currentJob}
-                />
-
-
-                {/* Docs Button - icon only on mobile */}
-                <button
-                    onClick={onDocsClick}
-                    className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-sm text-xs text-muted hover:text-[var(--color-fp-text)] hover:bg-frame transition-colors border border-metal"
-                >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                    </svg>
-                    <span className="hidden sm:inline">Docs</span>
-                </button>
-
-                {/* Server Status - shorter text on mobile */}
-                <div className="flex items-center gap-1 sm:gap-2">
-                    <span
-                        className={`inline-block w-2 h-2 sm:w-1.5 sm:h-1.5 rounded-full ${backendOnline ? 'bg-success' : 'bg-critical'
-                            }`}
-                    />
-                    <span className="text-[10px] sm:text-xs text-muted uppercase tracking-wider">
-                        {backendOnline ? (
-                            <><span className="hidden sm:inline">SERVER </span>ONLINE</>
-                        ) : (
-                            <><span className="hidden sm:inline">SERVER </span>OFF</>
-                        )}
-                    </span>
-                    {!backendOnline && (
-                        <button
-                            onClick={handleWakeUp}
-                            disabled={isWaking}
-                            className="ml-1 px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-xs rounded bg-warning/20 text-warning border border-warning/50 hover:bg-warning/30 transition-colors disabled:opacity-50"
-                        >
-                            {isWaking ? '...' : 'Wake'}
-                        </button>
-                    )}
-                </div>
-            </div>
         </header>
     );
 }
