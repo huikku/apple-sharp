@@ -71,9 +71,14 @@ def add_blender_vertex_colors(ply_path):
     """
     from plyfile import PlyData, PlyElement
     import numpy as np
+    import shutil
+    import tempfile
     
     try:
-        ply = PlyData.read(str(ply_path))
+        # Read file into memory and close immediately
+        with open(str(ply_path), 'rb') as f:
+            ply = PlyData.read(f)
+        
         vertex = ply['vertex']
         
         # Check if already has colors
@@ -82,16 +87,16 @@ def add_blender_vertex_colors(ply_path):
         
         # Convert SH DC to RGB: rgb = clamp(0.5 + SH_C0 * f_dc, 0..1)
         SH_C0 = 0.28209479177387814
-        f_dc_0 = vertex['f_dc_0']
-        f_dc_1 = vertex['f_dc_1']
-        f_dc_2 = vertex['f_dc_2']
+        f_dc_0 = vertex['f_dc_0'].copy()  # Copy to avoid reference issues
+        f_dc_1 = vertex['f_dc_1'].copy()
+        f_dc_2 = vertex['f_dc_2'].copy()
         
         red = np.clip((0.5 + SH_C0 * f_dc_0) * 255, 0, 255).astype(np.uint8)
         green = np.clip((0.5 + SH_C0 * f_dc_1) * 255, 0, 255).astype(np.uint8)
         blue = np.clip((0.5 + SH_C0 * f_dc_2) * 255, 0, 255).astype(np.uint8)
         
         # Alpha from sigmoid of opacity
-        opacity = vertex['opacity']
+        opacity = vertex['opacity'].copy()
         alpha = np.clip(1.0 / (1.0 + np.exp(-opacity)) * 255, 0, 255).astype(np.uint8)
         
         # Create new dtype with color properties
@@ -110,7 +115,13 @@ def add_blender_vertex_colors(ply_path):
         new_vertex = PlyElement.describe(new_data, 'vertex')
         new_elements = [new_vertex] + [e for e in ply.elements if e.name != 'vertex']
         new_ply = PlyData(new_elements)
-        new_ply.write(str(ply_path))
+        
+        # Write to temp file first, then replace original
+        with tempfile.NamedTemporaryFile(mode='wb', suffix='.ply', delete=False) as tmp:
+            new_ply.write(tmp)
+            tmp_path = tmp.name
+        
+        shutil.move(tmp_path, str(ply_path))
         
         print(f"[Blender] Added vertex colors to {ply_path}")
     except Exception as e:
