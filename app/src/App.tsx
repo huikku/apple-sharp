@@ -180,57 +180,68 @@ function App() {
       <main className="flex-1 flex flex-col overflow-hidden relative">
         {isMobile ? (
           <>
-            {/* Viewer - Full height when visible */}
-            <div
-              className={`w-full h-full p-2 ${mobileScreen === 1 ? 'block' : 'hidden'}`}
-            >
-              <SplatViewer
-                splatUrl={currentJob?.splatUrl ? api.getFullApiUrl(currentJob.splatUrl) : undefined}
-                showAxes={showAxes}
-                autoRotate={autoRotate}
-                pointSize={pointSize}
-              />
-            </div>
-
-            {/* Workflow screen */}
-            <div className={`w-full h-full ${mobileScreen === 0 ? 'block' : 'hidden'}`}>
-              <div className="w-full h-full p-4 pb-20 space-y-4 overflow-y-auto border-r border-metal bg-card/20">
-                <ImageUpload
-                  onUpload={handleUpload}
-                  uploadedImage={uploadedImage}
-                  isUploading={status === 'uploading'}
-                  disabled={status === 'processing'}
-                />
-                <ControlPanel
-                  uploadedImage={uploadedImage}
-                  status={status}
-                  onGenerate={handleGenerate}
-                  onReset={handleReset}
+            {/* All screens are stacked absolutely - visibility controlled to preserve WebGL context */}
+            <div className="flex-1 relative">
+              {/* Viewer - always rendered to preserve WebGL context */}
+              <div
+                className={`absolute inset-0 p-2 transition-opacity duration-150 ${mobileScreen === 1 ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
+                  }`}
+              >
+                <SplatViewer
+                  splatUrl={currentJob?.splatUrl ? api.getFullApiUrl(currentJob.splatUrl) : undefined}
                   showAxes={showAxes}
-                  onShowAxesChange={setShowAxes}
                   autoRotate={autoRotate}
-                  onAutoRotateChange={setAutoRotate}
                   pointSize={pointSize}
-                  onSplatScaleChange={setPointSize}
-                  hasSplat={status === 'complete' && !!currentJob?.splatUrl}
-                />
-                <OutputsPanel
-                  splatPath={currentJob?.splatPath || null}
-                  splatUrl={currentJob?.splatUrl || null}
-                  jobId={currentJob?.jobId || null}
-                  isComplete={status === 'complete'}
-                  onLog={(message, type) => {
-                    if (type === 'error') logError('OUTPUT', message);
-                    else if (type === 'success') logSuccess('OUTPUT', message);
-                    else logInfo('OUTPUT', message);
-                  }}
                 />
               </div>
-            </div>
 
-            <div className={`w-full h-full ${mobileScreen === 2 ? 'block' : 'hidden'}`}>
-              <div className="w-full h-full p-4 border-l border-metal flex flex-col bg-card/20">
-                <LogPanel logs={logs} onClear={clearLogs} />
+              {/* Workflow screen */}
+              <div
+                className={`absolute inset-0 transition-opacity duration-150 ${mobileScreen === 0 ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
+                  }`}
+              >
+                <div className="w-full h-full p-4 pb-20 space-y-4 overflow-y-auto border-r border-metal bg-card/20">
+                  <ImageUpload
+                    onUpload={handleUpload}
+                    uploadedImage={uploadedImage}
+                    isUploading={status === 'uploading'}
+                    disabled={status === 'processing'}
+                  />
+                  <ControlPanel
+                    uploadedImage={uploadedImage}
+                    status={status}
+                    onGenerate={handleGenerate}
+                    onReset={handleReset}
+                    showAxes={showAxes}
+                    onShowAxesChange={setShowAxes}
+                    autoRotate={autoRotate}
+                    onAutoRotateChange={setAutoRotate}
+                    pointSize={pointSize}
+                    onSplatScaleChange={setPointSize}
+                    hasSplat={status === 'complete' && !!currentJob?.splatUrl}
+                  />
+                  <OutputsPanel
+                    splatPath={currentJob?.splatPath || null}
+                    splatUrl={currentJob?.splatUrl || null}
+                    jobId={currentJob?.jobId || null}
+                    isComplete={status === 'complete'}
+                    onLog={(message, type) => {
+                      if (type === 'error') logError('OUTPUT', message);
+                      else if (type === 'success') logSuccess('OUTPUT', message);
+                      else logInfo('OUTPUT', message);
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Logs screen */}
+              <div
+                className={`absolute inset-0 transition-opacity duration-150 ${mobileScreen === 2 ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
+                  }`}
+              >
+                <div className="w-full h-full p-4 border-l border-metal flex flex-col bg-card/20">
+                  <LogPanel logs={logs} onClear={clearLogs} />
+                </div>
               </div>
             </div>
 
