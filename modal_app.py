@@ -494,14 +494,7 @@ def fastapi_app():
             "service": "sharp-api-modal",
             "version": "2.1.0",
             "activeJobs": active_count,
-            "queuedJobs": queued_count,
         }
-    
-    @web_app.get("/sentry-debug")
-    async def trigger_error():
-        """Trigger a test error for Sentry verification."""
-        division_by_zero = 1 / 0
-        return {"error": "This should never be reached"}
     
     @web_app.get("/api/queue")
     async def get_queue_status():
