@@ -3,7 +3,10 @@ import type { ImageUploadResponse, SplatJob, UsageStats, CostStats } from '../ty
 
 // In production, use Modal API URL from env var
 // In development, use empty string (Vite proxy handles routing)
-export const API_BASE = import.meta.env.VITE_API_URL || '';
+// Fallback to production Modal URL if env var not set
+const PRODUCTION_API_URL = 'https://huikku--sharp-api-fastapi-app.modal.run';
+export const API_BASE = import.meta.env.VITE_API_URL
+    || (import.meta.env.PROD ? PRODUCTION_API_URL : '');
 
 const api = axios.create({
     baseURL: API_BASE,
