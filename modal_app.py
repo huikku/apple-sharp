@@ -368,6 +368,54 @@ def fastapi_app():
     
     web_app.add_middleware(SecurityHeadersMiddleware)
     
+    # Rate limiting middleware
+    from collections import defaultdict
+    import time as time_module
+    from starlette.responses import JSONResponse
+    
+    class RateLimitMiddleware(BaseHTTPMiddleware):
+        """Simple in-memory rate limiter by IP."""
+        
+        def __init__(self, app, rate_limit: int = 60, window_seconds: int = 60):
+            super().__init__(app)
+            self.rate_limit = rate_limit  # requests per window
+            self.window_seconds = window_seconds
+            self.requests = defaultdict(list)  # IP -> list of timestamps
+        
+        async def dispatch(self, request, call_next):
+            # Get client IP
+            client_ip = request.client.host if request.client else "unknown"
+            forwarded = request.headers.get("x-forwarded-for")
+            if forwarded:
+                client_ip = forwarded.split(",")[0].strip()
+            
+            now = time_module.time()
+            window_start = now - self.window_seconds
+            
+            # Clean old requests and get recent count
+            self.requests[client_ip] = [
+                ts for ts in self.requests[client_ip] if ts > window_start
+            ]
+            
+            # Check rate limit
+            if len(self.requests[client_ip]) >= self.rate_limit:
+                print(f"[Rate Limit] Blocked {client_ip}: {len(self.requests[client_ip])}/{self.rate_limit} requests")
+                return JSONResponse(
+                    status_code=429,
+                    content={"detail": f"Rate limit exceeded. Max {self.rate_limit} requests per {self.window_seconds}s"},
+                    headers={"Retry-After": str(self.window_seconds)}
+                )
+            
+            # Record request
+            self.requests[client_ip].append(now)
+            
+            # Process request
+            response = await call_next(request)
+            return response
+    
+    # Apply rate limiting: 60 requests per minute per IP
+    web_app.add_middleware(RateLimitMiddleware, rate_limit=60, window_seconds=60)
+    
     # Add exception handler to ensure CORS headers on errors
     from starlette.responses import JSONResponse
     from starlette.requests import Request
