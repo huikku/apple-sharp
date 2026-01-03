@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Clipboard, FileJson, Target } from 'lucide-react';
+import { Clipboard, FileJson, Target, ExternalLink } from 'lucide-react';
 import { exportGeometry, getExportGeometry } from '../utils/meshExporter';
 import { getFullApiUrl, convertToMesh, getMeshDownloadUrl, type MeshConvertResponse } from '../services/api';
 
@@ -99,16 +99,29 @@ export function OutputsPanel({ splatUrl, jobId, isComplete, splatPath, onLog }: 
                 </p>
             ) : (
                 <>
-                    {/* 1. PLY Download */}
+                    {/* 1. PLY Download & SuperSplat */}
                     <div>
                         <p className="text-xs text-muted uppercase tracking-wider mb-2">Gaussian Splat</p>
-                        <button
-                            onClick={handleDownloadPly}
-                            className="w-full py-2 px-3 rounded-sm text-sm font-medium uppercase tracking-wider
-                                transition-colors border bg-transparent text-success border-success hover:bg-success/10"
-                        >
-                            Download .PLY
-                        </button>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={handleDownloadPly}
+                                className="flex-1 py-2 px-3 rounded-sm text-sm font-medium uppercase tracking-wider
+                                    transition-colors border bg-transparent text-success border-success hover:bg-success/10"
+                            >
+                                Download .PLY
+                            </button>
+                            <a
+                                href={`https://superspl.at/editor?load=${encodeURIComponent(getFullApiUrl(splatUrl || ''))}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1.5 py-2 px-3 rounded-sm text-sm font-medium uppercase tracking-wider
+                                    transition-colors border bg-transparent text-info border-info hover:bg-info/10"
+                                title="Open in SuperSplat Editor"
+                            >
+                                <ExternalLink size={14} />
+                                SuperSplat
+                            </a>
+                        </div>
                     </div>
 
                     {/* 2. Server-side Mesh Reconstruction */}
