@@ -16,10 +16,19 @@ interface LogPanelProps {
 export function LogPanel({ logs, onClear }: LogPanelProps) {
     const [copied, setCopied] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
+    const isAtBottomRef = useRef(true);
 
-    // Auto-scroll to bottom when new logs arrive
-    useEffect(() => {
+    // Track if user is at bottom
+    const handleScroll = useCallback(() => {
         if (scrollRef.current) {
+            const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+            isAtBottomRef.current = scrollHeight - scrollTop - clientHeight < 50;
+        }
+    }, []);
+
+    // Auto-scroll to bottom only if user was already at bottom
+    useEffect(() => {
+        if (scrollRef.current && isAtBottomRef.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
     }, [logs]);
@@ -92,6 +101,7 @@ export function LogPanel({ logs, onClear }: LogPanelProps) {
 
             <div
                 ref={scrollRef}
+                onScroll={handleScroll}
                 className="flex-1 overflow-y-auto p-2 space-y-2 min-h-0 scrollbar-dark"
             >
 
