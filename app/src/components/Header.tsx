@@ -132,18 +132,6 @@ export function Header({
                         </button>
                     )}
                 </div>
-
-                <div className="flex items-center gap-1 text-xs text-muted/50">
-                    <span>Frontend by</span>
-                    <a
-                        href="https://www.alienrobot.com"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-muted/70 hover:text-info transition-colors"
-                    >
-                        John Huikku
-                    </a>
-                </div>
             </div>
         </header>
     );
