@@ -647,10 +647,13 @@ def fastapi_app():
             
             if file_path.exists():
                 print(f"[Download] Found exact match: {file_path}")
+                # Use PLY-specific media type for better compatibility with 3D tools
+                media = "application/x-ply" if filename.endswith('.ply') else "application/octet-stream"
                 return FileResponse(
                     path=str(file_path),
                     filename=filename,
-                    media_type="application/octet-stream"
+                    media_type=media,
+                    headers={"Content-Disposition": f"attachment; filename={filename}"}
                 )
             
             # Fallback: try to find ANY PLY file in the job directory
@@ -662,7 +665,8 @@ def fastapi_app():
                     return FileResponse(
                         path=str(found_file),
                         filename=found_file.name,
-                        media_type="application/octet-stream"
+                        media_type="application/x-ply",
+                        headers={"Content-Disposition": f"attachment; filename={found_file.name}"}
                     )
             
             # Wait and retry
