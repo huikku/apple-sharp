@@ -63,6 +63,60 @@ outputs_volume = modal.Volume.from_name("sharp-outputs", create_if_missing=True)
 job_dict = modal.Dict.from_name("sharp-jobs", create_if_missing=True)
 stats_dict = modal.Dict.from_name("sharp-stats", create_if_missing=True)
 
+
+def add_blender_vertex_colors(ply_path):
+    """
+    Post-process PLY to add Blender-compatible vertex colors.
+    Reads f_dc_* (SH DC terms) and opacity, converts to red/green/blue/alpha (uchar 0-255).
+    """
+    from plyfile import PlyData, PlyElement
+    import numpy as np
+    
+    try:
+        ply = PlyData.read(str(ply_path))
+        vertex = ply['vertex']
+        
+        # Check if already has colors
+        if 'red' in vertex.data.dtype.names:
+            return  # Already has vertex colors
+        
+        # Convert SH DC to RGB: rgb = clamp(0.5 + SH_C0 * f_dc, 0..1)
+        SH_C0 = 0.28209479177387814
+        f_dc_0 = vertex['f_dc_0']
+        f_dc_1 = vertex['f_dc_1']
+        f_dc_2 = vertex['f_dc_2']
+        
+        red = np.clip((0.5 + SH_C0 * f_dc_0) * 255, 0, 255).astype(np.uint8)
+        green = np.clip((0.5 + SH_C0 * f_dc_1) * 255, 0, 255).astype(np.uint8)
+        blue = np.clip((0.5 + SH_C0 * f_dc_2) * 255, 0, 255).astype(np.uint8)
+        
+        # Alpha from sigmoid of opacity
+        opacity = vertex['opacity']
+        alpha = np.clip(1.0 / (1.0 + np.exp(-opacity)) * 255, 0, 255).astype(np.uint8)
+        
+        # Create new dtype with color properties
+        old_dtype = vertex.data.dtype.descr
+        new_dtype = old_dtype + [('red', 'u1'), ('green', 'u1'), ('blue', 'u1'), ('alpha', 'u1')]
+        
+        new_data = np.empty(len(vertex.data), dtype=new_dtype)
+        for name in vertex.data.dtype.names:
+            new_data[name] = vertex.data[name]
+        new_data['red'] = red
+        new_data['green'] = green
+        new_data['blue'] = blue
+        new_data['alpha'] = alpha
+        
+        # Replace vertex element
+        new_vertex = PlyElement.describe(new_data, 'vertex')
+        new_elements = [new_vertex] + [e for e in ply.elements if e.name != 'vertex']
+        new_ply = PlyData(new_elements)
+        new_ply.write(str(ply_path))
+        
+        print(f"[Blender] Added vertex colors to {ply_path}")
+    except Exception as e:
+        print(f"[Blender] Warning: Could not add vertex colors: {e}")
+
+
 @app.cls(
     gpu="T4",
     volumes={
@@ -185,6 +239,9 @@ class SharpInference:
             # 4. Save PLY (scale reduction now happens in save_ply itself)
             ply_file = Path(output_dir) / "splat.ply"
             save_ply(gaussians, f_px, (height, width), ply_file)
+            
+            # 5. Post-process PLY to add Blender-compatible vertex colors
+            add_blender_vertex_colors(ply_file)
             
             elapsed_ms = int((time.time() - start_time) * 1000)
             
