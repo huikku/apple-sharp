@@ -96,7 +96,11 @@ function App() {
         if (isMobile) setMobileScreen(1);
       }
 
+      let isCompleted = false; // Guard to prevent duplicate completion handling
+
       const pollInterval = setInterval(async () => {
+        if (isCompleted) return; // Skip if already completed
+
         try {
           const updatedJob = await api.getSplatStatus(job.jobId);
           setCurrentJob(updatedJob);
@@ -108,21 +112,30 @@ function App() {
           }
 
           if (updatedJob.status === 'complete') {
-            clearInterval(pollInterval);
-            setStatus('complete');
-            logSuccess('INFERENCE', `Complete in ${(updatedJob.processingTimeMs || 0) / 1000}s`);
+            if (!isCompleted) {
+              isCompleted = true;
+              clearInterval(pollInterval);
+              setStatus('complete');
+              logSuccess('INFERENCE', `Complete in ${(updatedJob.processingTimeMs || 0) / 1000}s`);
+            }
           } else if (updatedJob.status === 'error') {
-            clearInterval(pollInterval);
-            setStatus('error');
-            setError(updatedJob.error);
-            logError('INFERENCE', updatedJob.error || 'Generation failed');
+            if (!isCompleted) {
+              isCompleted = true;
+              clearInterval(pollInterval);
+              setStatus('error');
+              setError(updatedJob.error);
+              logError('INFERENCE', updatedJob.error || 'Generation failed');
+            }
           }
         } catch (pollErr) {
-          clearInterval(pollInterval);
-          setStatus('error');
-          const errorMsg = pollErr instanceof Error ? pollErr.message : 'Failed to check job status';
-          setError(errorMsg);
-          logError('CONNECTION', errorMsg);
+          if (!isCompleted) {
+            isCompleted = true;
+            clearInterval(pollInterval);
+            setStatus('error');
+            const errorMsg = pollErr instanceof Error ? pollErr.message : 'Failed to check job status';
+            setError(errorMsg);
+            logError('CONNECTION', errorMsg);
+          }
         }
       }, 2000);
     } catch (err) {

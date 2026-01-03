@@ -216,7 +216,11 @@ export function SplatViewer({
                 {splatUrl ? (
                     <Canvas
                         camera={{ position: [0, 0, 500], fov: 60, near: 0.1, far: 100000 }}
-                        gl={{ antialias: true }}
+                        gl={{
+                            antialias: true,
+                            preserveDrawingBuffer: true,  // Prevent context loss when canvas goes off-screen
+                            powerPreference: 'high-performance'
+                        }}
                     >
                         <color attach="background" args={['#0A0C0E']} />
                         <ambientLight intensity={1} />
