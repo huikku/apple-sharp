@@ -497,6 +497,12 @@ def fastapi_app():
             "queuedJobs": queued_count,
         }
     
+    @web_app.get("/sentry-debug")
+    async def trigger_error():
+        """Trigger a test error for Sentry verification."""
+        division_by_zero = 1 / 0
+        return {"error": "This should never be reached"}
+    
     @web_app.get("/api/queue")
     async def get_queue_status():
         active_count = 0
