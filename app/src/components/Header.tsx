@@ -70,7 +70,7 @@ export function Header({
             </div>
 
             {/* Mobile Screen Switcher */}
-            {onMobileScreenChange !== undefined && (
+            {mobileScreen !== undefined && onMobileScreenChange !== undefined && (
                 <div className="flex bg-void/50 border border-metal/30 rounded-md p-0.5 gap-0.5">
                     <button
                         onClick={() => onMobileScreenChange(0)}

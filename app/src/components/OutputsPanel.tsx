@@ -138,7 +138,7 @@ export function OutputsPanel({ splatUrl, jobId, isComplete, splatPath, onLog }: 
                                 {(['obj', 'glb', 'ply'] as ExportFormat[]).map((f) => (
                                     <button
                                         key={f}
-                                        onClick={() => setMeshFormat(f)}
+                                        onClick={() => { setMeshFormat(f); setMeshResult(null); }}
                                         className={`
                                             flex-1 py-1 rounded text-xs font-medium uppercase transition-colors border
                                             ${meshFormat === f
